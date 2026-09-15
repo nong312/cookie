@@ -1,714 +1,314 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <meta http-equiv="Content-Style-Type" content="text/css">
-  <title></title>
-  <meta name="Generator" content="Cocoa HTML Writer">
-  <meta name="CocoaVersion" content="2113.65">
-  <style type="text/css">
-    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
-    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
-    span.s1 {font: 12.0px 'Lucida Grande'}
-    span.s2 {font: 12.0px 'Apple Color Emoji'}
-    span.s3 {font: 12.0px 'PingFang SC'}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Friend Location Sharing</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; height: 100vh; background-color: #f4f4f9; }
+    .sidebar { width: 350px; background-color: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.1); overflow-y: auto; display: flex; flex-direction: column; z-index: 999; }
+    .header { background-color: #007bff; color: white; padding: 16px; text-align: center; border-bottom: 2px solid #0056b3; }
+    .header h1 { font-size: 1.3rem; margin-bottom: 8px; }
+    .header p { font-size: 0.85rem; opacity: 0.9; }
+    .content { flex: 1; overflow-y: auto; padding: 12px; }
+    .section { margin-bottom: 16px; background-color: #f9f9f9; padding: 12px; border-radius: 8px; border-left: 4px solid #007bff; }
+    .section-title { font-weight: bold; font-size: 0.95rem; color: #333; margin-bottom: 8px; display: flex; align-items: center; }
+    .section-title::before { content: '▶'; margin-right: 6px; font-size: 0.8rem; }
+    .my-location-info { background-color: #e7f3ff; padding: 8px; border-radius: 4px; font-size: 0.85rem; color: #0056b3; margin-bottom: 8px; }
+    .address-text { font-size: 0.9rem; font-weight: bold; word-break: break-word; margin-top: 4px; }
+    .coordinates { font-size: 0.8rem; color: #666; margin-top: 4px; }
+    .friend-add { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+    .friend-add input { flex: 1; min-width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85rem; }
+    .friend-add button { padding: 8px 12px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: bold; }
+    .friend-add button:hover { background-color: #218838; }
+    .friend-item { background-color: #fff; border: 1px solid #ddd; padding: 8px; margin-bottom: 6px; border-radius: 4px; font-size: 0.85rem; }
+    .friend-name { font-weight: bold; color: #333; margin-bottom: 4px; }
+    .friend-contact { color: #666; font-size: 0.8rem; margin-bottom: 6px; word-break: break-all; }
+    .friend-actions { display: flex; gap: 4px; }
+    .friend-actions button { flex: 1; padding: 4px 6px; font-size: 0.75rem; border: none; border-radius: 3px; cursor: pointer; color: white; }
+    .btn-view { background-color: #007bff; }
+    .btn-view:hover { background-color: #0056b3; }
+    .btn-delete { background-color: #dc3545; }
+    .btn-delete:hover { background-color: #c82333; }
+    .share-section { display: flex; flex-direction: column; gap: 6px; }
+    .share-button { padding: 10px; background-color: #ffc107; color: #333; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
+    .share-button:hover { background-color: #e0a800; }
+    .copy-link { padding: 8px; background-color: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .copy-link:hover { background-color: #5a6268; }
+    .share-link { background-color: #fff; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.75rem; word-break: break-all; color: #0056b3; max-height: 60px; overflow-y: auto; }
+    .facility-item { background-color: #fff; border: 1px solid #ddd; padding: 8px; margin-bottom: 6px; border-radius: 4px; font-size: 0.85rem; }
+    .facility-name { font-weight: bold; color: #333; margin-bottom: 3px; }
+    .facility-type { display: inline-block; background-color: #007bff; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.7rem; margin-bottom: 4px; margin-right: 4px; }
+    .facility-distance { color: #666; font-size: 0.8rem; }
+    .map-container { flex: 1; display: flex; flex-direction: column; }
+    #map { flex: 1; width: 100%; }
+    .no-items { color: #999; font-size: 0.85rem; text-align: center; padding: 8px; }
+    .loading { color: #666; font-size: 0.85rem; text-align: center; padding: 8px; }
+    .tooltip { position: relative; display: inline-block; color: #0056b3; cursor: help; text-decoration: underline; font-size: 0.8rem; }
+    .tooltip .tooltiptext { visibility: hidden; width: 150px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 5px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -75px; opacity: 0; transition: opacity 0.3s; font-size: 0.75rem; text-decoration: none; }
+    .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
+    @media (max-width: 768px) { body { flex-direction: column; } .sidebar { width: 100%; height: 40%; } .map-container { height: 60%; } }
   </style>
 </head>
 <body>
-<p class="p1">&lt;!DOCTYPE html&gt;</p>
-<p class="p1">&lt;html lang="en"&gt;</p>
-<p class="p1">&lt;head&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;meta charset="UTF-8"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;title&gt;Friend Location Sharing&lt;/title&gt;</p>
-<p class="p2"><span class="Apple-converted-space">  </span></p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;!-- Leaflet CSS --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /&gt;</p>
-<p class="p2"><span class="Apple-converted-space">  </span></p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;!-- Leaflet Routing Machine --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;link rel="stylesheet" href="https://unpkg.com/@leaflet-extras/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" /&gt;</p>
-<p class="p2"><span class="Apple-converted-space">  </span></p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;style&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>* {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>box-sizing: border-box;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin: 0;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 0;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>body {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>height: 100vh;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #f4f4f9;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.sidebar {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>width: 350px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #fff;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>box-shadow: 0 0 10px rgba(0,0,0,0.1);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>overflow-y: auto;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flex-direction: column;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>z-index: 999;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.header {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #007bff;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: white;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 16px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>text-align: center;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-bottom: 2px solid #0056b3;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.header h1 {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 1.3rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-bottom: 8px;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.header p {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.85rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>opacity: 0.9;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.content {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flex: 1;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>overflow-y: auto;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 12px;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.section {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-bottom: 16px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #f9f9f9;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 12px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 8px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-left: 4px solid #007bff;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.section-title {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-weight: bold;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.95rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #333;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-bottom: 8px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>align-items: center;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.section-title::before {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>content: '<span class="s1">▶</span>';</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-right: 6px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.8rem;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.my-location-info {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #e7f3ff;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 8px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 4px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.85rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #0056b3;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-bottom: 8px;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.address-text {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.9rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-weight: bold;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>word-break: break-word;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-top: 4px;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.coordinates {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.8rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #666;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-top: 4px;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.friend-add {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>gap: 6px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-bottom: 8px;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.friend-add input {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flex: 1;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 8px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border: 1px solid #ddd;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 4px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.85rem;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.friend-add button {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 8px 12px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #28a745;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: white;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border: none;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 4px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>cursor: pointer;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.85rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-weight: bold;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.friend-add button:hover {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #218838;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.friend-item {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #fff;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border: 1px solid #ddd;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 8px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-bottom: 6px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 4px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.85rem;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.friend-name {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-weight: bold;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #333;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-bottom: 4px;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.friend-contact {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #666;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.8rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-bottom: 6px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>word-break: break-all;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.friend-actions {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>gap: 4px;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.friend-actions button {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flex: 1;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 4px 6px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.75rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border: none;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 3px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>cursor: pointer;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: white;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.btn-view {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #007bff;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.btn-view:hover {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #0056b3;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.btn-delete {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #dc3545;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.btn-delete:hover {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #c82333;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.share-section {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flex-direction: column;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>gap: 6px;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.share-button {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 10px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #ffc107;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #333;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border: none;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 4px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>cursor: pointer;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-weight: bold;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.9rem;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.share-button:hover {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #e0a800;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.copy-link {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 8px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #6c757d;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: white;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border: none;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 4px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>cursor: pointer;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.85rem;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.copy-link:hover {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #5a6268;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.share-link {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #fff;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 6px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border: 1px solid #ddd;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 4px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.75rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>word-break: break-all;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #0056b3;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>max-height: 60px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>overflow-y: auto;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.facility-item {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #fff;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border: 1px solid #ddd;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 8px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-bottom: 6px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 4px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.85rem;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.facility-name {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-weight: bold;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #333;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-bottom: 3px;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.facility-type {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: inline-block;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #007bff;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: white;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 2px 6px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 3px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.7rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-bottom: 4px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-right: 4px;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.facility-distance {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #666;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.8rem;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.map-container {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flex: 1;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: flex;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flex-direction: column;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>#map {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>flex: 1;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>width: 100%;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.no-items {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #999;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.85rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>text-align: center;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 8px;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.loading {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #666;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.85rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>text-align: center;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 8px;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.tooltip {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>position: relative;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>display: inline-block;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #0056b3;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>cursor: help;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>text-decoration: underline;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.8rem;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.tooltip .tooltiptext {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>visibility: hidden;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>width: 150px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>background-color: #333;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>color: #fff;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>text-align: center;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>border-radius: 6px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>padding: 5px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>position: absolute;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>z-index: 1;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>bottom: 125%;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>left: 50%;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>margin-left: -75px;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>opacity: 0;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>transition: opacity 0.3s;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>font-size: 0.75rem;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>text-decoration: none;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>.tooltip:hover .tooltiptext {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>visibility: visible;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>opacity: 1;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>@media (max-width: 768px) {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>body {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>flex-direction: column;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}</p>
-<p class="p1"><span class="Apple-converted-space">      </span>.sidebar {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>width: 100%;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>height: 40%;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}</p>
-<p class="p1"><span class="Apple-converted-space">      </span>.map-container {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>height: 60%;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;/style&gt;</p>
-<p class="p1">&lt;/head&gt;</p>
-<p class="p1">&lt;body&gt;</p>
-<p class="p2"><span class="Apple-converted-space">  </span></p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;div class="sidebar"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="header"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;h1&gt;<span class="s2">📍</span> Location Sharing&lt;/h1&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;p&gt;Share locations with friends &amp; find nearby facilities&lt;/p&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="content"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;!-- My Location Section --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;div class="section"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="section-title"&gt;My Location&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="my-location-info"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;div id="address-text"&gt;Fetching location...&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;div class="coordinates" id="coordinates-text"&gt;&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;/div&gt;</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;!-- Add Friends Section --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;div class="section"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="section-title"&gt;Friends&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="friend-add"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;input type="text" id="friend-name" placeholder="Friend's name"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;input type="text" id="friend-contact" placeholder="Email or phone"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;button onclick="addFriend()"&gt;Add&lt;/button&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;div id="friends-list"&gt;&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;/div&gt;</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;!-- Share Location Section --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;div class="section share-section"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="section-title"&gt;Share&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;button class="share-button" onclick="generateShareLink()"&gt;<span class="s2">📤</span> Generate Share Link&lt;/button&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;button class="copy-link" onclick="copyToClipboard()"&gt;Copy Link&lt;/button&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;div id="share-link" class="share-link" style="display: none;"&gt;&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;/div&gt;</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;!-- Nearby Facilities Section --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;div class="section"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="section-title"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>Nearby Facilities</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;span class="tooltip"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">            </span><span class="s3">ⓘ</span></p>
-<p class="p1"><span class="Apple-converted-space">            </span>&lt;span class="tooltiptext"&gt;Public facilities within 1 km from your location&lt;/span&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;/span&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>&lt;div id="facilities-list" class="loading"&gt;Loading facilities...&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</p>
-<p class="p2"><span class="Apple-converted-space">  </span></p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;div class="map-container"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="map"&gt;&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;!-- Leaflet JS --&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"&gt;&lt;/script&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;script src="https://unpkg.com/@leaflet-extras/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.umd.js"&gt;&lt;/script&gt;</p>
-<p class="p2"><span class="Apple-converted-space">  </span></p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;script&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>// Initialize state</p>
-<p class="p1"><span class="Apple-converted-space">    </span>let userLocation = { lat: 0, lon: 0 };</p>
-<p class="p1"><span class="Apple-converted-space">    </span>let friends = JSON.parse(localStorage.getItem('friends')) || [];</p>
-<p class="p1"><span class="Apple-converted-space">    </span>let map;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>let markers = {};</p>
-<p class="p1"><span class="Apple-converted-space">    </span>let facilitiesMarkers = [];</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// Initialize the Leaflet map</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function initMap() {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>map = L.map('map').setView([0, 0], 2);</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>maxZoom: 19,</p>
-<p class="p1"><span class="Apple-converted-space">        </span>attribution: '© OpenStreetMap contributors'</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}).addTo(map);</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// Get user location</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function getUserLocation() {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>if (navigator.geolocation) {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>navigator.geolocation.getCurrentPosition(</p>
-<p class="p1"><span class="Apple-converted-space">          </span>(position) =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">            </span>userLocation.lat = position.coords.latitude;</p>
-<p class="p1"><span class="Apple-converted-space">            </span>userLocation.lon = position.coords.longitude;</p>
-<p class="p2"><span class="Apple-converted-space">            </span></p>
-<p class="p1"><span class="Apple-converted-space">            </span>// Update map</p>
-<p class="p1"><span class="Apple-converted-space">            </span>map.setView([userLocation.lat, userLocation.lon], 16);</p>
-<p class="p2"><span class="Apple-converted-space">            </span></p>
-<p class="p1"><span class="Apple-converted-space">            </span>// Add user marker</p>
-<p class="p1"><span class="Apple-converted-space">            </span>if (markers['me']) markers['me'].remove();</p>
-<p class="p1"><span class="Apple-converted-space">            </span>markers['me'] = L.marker([userLocation.lat, userLocation.lon], {</p>
-<p class="p1"><span class="Apple-converted-space">              </span>icon: L.icon({</p>
-<p class="p1"><span class="Apple-converted-space">                </span>iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',</p>
-<p class="p1"><span class="Apple-converted-space">                </span>shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',</p>
-<p class="p1"><span class="Apple-converted-space">                </span>iconSize: [25, 41],</p>
-<p class="p1"><span class="Apple-converted-space">                </span>iconAnchor: [12, 41],</p>
-<p class="p1"><span class="Apple-converted-space">                </span>popupAnchor: [1, -34],</p>
-<p class="p1"><span class="Apple-converted-space">                </span>shadowSize: [41, 41]</p>
-<p class="p1"><span class="Apple-converted-space">              </span>})</p>
-<p class="p1"><span class="Apple-converted-space">            </span>}).addTo(map).bindPopup("&lt;b&gt;<span class="s2">📍</span> You&lt;/b&gt;").openPopup();</p>
-<p class="p2"><span class="Apple-converted-space">            </span></p>
-<p class="p1"><span class="Apple-converted-space">            </span>// Get address</p>
-<p class="p1"><span class="Apple-converted-space">            </span>reverseGeocode(userLocation.lat, userLocation.lon);</p>
-<p class="p2"><span class="Apple-converted-space">            </span></p>
-<p class="p1"><span class="Apple-converted-space">            </span>// Load nearby facilities</p>
-<p class="p1"><span class="Apple-converted-space">            </span>loadNearbyFacilities(userLocation.lat, userLocation.lon);</p>
-<p class="p2"><span class="Apple-converted-space">            </span></p>
-<p class="p1"><span class="Apple-converted-space">            </span>// Display coordinates</p>
-<p class="p1"><span class="Apple-converted-space">            </span>document.getElementById('coordinates-text').textContent =<span class="Apple-converted-space"> </span></p>
-<p class="p1"><span class="Apple-converted-space">              </span>`${userLocation.lat.toFixed(5)}, ${userLocation.lon.toFixed(5)}`;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>},</p>
-<p class="p1"><span class="Apple-converted-space">          </span>(error) =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">            </span>console.error('Geolocation error:', error);</p>
-<p class="p1"><span class="Apple-converted-space">            </span>document.getElementById('address-text').textContent = "Unable to retrieve location. Please allow location access.";</p>
-<p class="p1"><span class="Apple-converted-space">          </span>}</p>
-<p class="p1"><span class="Apple-converted-space">        </span>);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// Reverse geocoding using Nominatim</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function reverseGeocode(lat, lon) {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&amp;lat=${lat}&amp;lon=${lon}&amp;accept-language=en`)</p>
-<p class="p1"><span class="Apple-converted-space">        </span>.then(response =&gt; response.json())</p>
-<p class="p1"><span class="Apple-converted-space">        </span>.then(data =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>if (data &amp;&amp; data.display_name) {</p>
-<p class="p1"><span class="Apple-converted-space">            </span>document.getElementById('address-text').textContent = data.display_name;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>}</p>
-<p class="p1"><span class="Apple-converted-space">        </span>})</p>
-<p class="p1"><span class="Apple-converted-space">        </span>.catch(error =&gt; console.error('Geocoding error:', error));</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// Load nearby facilities using Overpass API</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function loadNearbyFacilities(lat, lon) {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>const facilitiesList = document.getElementById('facilities-list');</p>
-<p class="p1"><span class="Apple-converted-space">      </span>facilitiesList.innerHTML = '&lt;div class="loading"&gt;Searching for facilities...&lt;/div&gt;';</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>// Clear existing facility markers</p>
-<p class="p1"><span class="Apple-converted-space">      </span>facilitiesMarkers.forEach(marker =&gt; marker.remove());</p>
-<p class="p1"><span class="Apple-converted-space">      </span>facilitiesMarkers = [];</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>const facilities = [];</p>
-<p class="p1"><span class="Apple-converted-space">      </span>const radius = 1000; // 1km in meters</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>// Define search types with Overpass queries</p>
-<p class="p1"><span class="Apple-converted-space">      </span>const queries = [</p>
-<p class="p1"><span class="Apple-converted-space">        </span>{ type: 'Public Toilet', query: 'node[amenity=toilets]', icon: '<span class="s2">🚻</span>' },</p>
-<p class="p1"><span class="Apple-converted-space">        </span>{ type: 'Bus Station', query: 'node[amenity=bus_station]', icon: '<span class="s2">🚌</span>' },</p>
-<p class="p1"><span class="Apple-converted-space">        </span>{ type: 'Train Station', query: 'node[amenity=train_station]', icon: '<span class="s2">🚂</span>' },</p>
-<p class="p1"><span class="Apple-converted-space">        </span>{ type: 'Supermarket', query: 'node[shop=supermarket]', icon: '<span class="s2">🛒</span>' },</p>
-<p class="p1"><span class="Apple-converted-space">        </span>{ type: 'Restaurant', query: 'node[amenity=restaurant]', icon: '<span class="s2">🍽️</span>' }</p>
-<p class="p1"><span class="Apple-converted-space">      </span>];</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>let completedQueries = 0;</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>queries.forEach(item =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>const bbox = `${lon - 0.009},${lat - 0.009},${lon + 0.009},${lat + 0.009}`; // ~1km bbox</p>
-<p class="p1"><span class="Apple-converted-space">        </span>const overpassUrl = `https://overpass-api.de/api/interpreter?data=[bbox:${bbox}];${item.query};out center;`;</p>
-<p class="p2"><span class="Apple-converted-space">        </span></p>
-<p class="p1"><span class="Apple-converted-space">        </span>fetch(overpassUrl)</p>
-<p class="p1"><span class="Apple-converted-space">          </span>.then(response =&gt; response.json())</p>
-<p class="p1"><span class="Apple-converted-space">          </span>.then(data =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">            </span>if (data.elements) {</p>
-<p class="p1"><span class="Apple-converted-space">              </span>data.elements.forEach(element =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">                </span>const elemLat = element.center?.lat || element.lat;</p>
-<p class="p1"><span class="Apple-converted-space">                </span>const elemLon = element.center?.lon || element.lon;</p>
-<p class="p2"><span class="Apple-converted-space">                </span></p>
-<p class="p1"><span class="Apple-converted-space">                </span>if (elemLat &amp;&amp; elemLon) {</p>
-<p class="p1"><span class="Apple-converted-space">                  </span>const distance = calculateDistance(lat, lon, elemLat, elemLon);</p>
-<p class="p2"><span class="Apple-converted-space">                  </span></p>
-<p class="p1"><span class="Apple-converted-space">                  </span>if (distance &lt;= 1) { // 1 km</p>
-<p class="p1"><span class="Apple-converted-space">                    </span>facilities.push({</p>
-<p class="p1"><span class="Apple-converted-space">                      </span>type: item.type,</p>
-<p class="p1"><span class="Apple-converted-space">                      </span>icon: item.icon,</p>
-<p class="p1"><span class="Apple-converted-space">                      </span>name: element.tags?.name || `${item.type} #${facilities.length + 1}`,</p>
-<p class="p1"><span class="Apple-converted-space">                      </span>lat: elemLat,</p>
-<p class="p1"><span class="Apple-converted-space">                      </span>lon: elemLon,</p>
-<p class="p1"><span class="Apple-converted-space">                      </span>distance: distance</p>
-<p class="p1"><span class="Apple-converted-space">                    </span>});</p>
-<p class="p2"><span class="Apple-converted-space">                    </span></p>
-<p class="p1"><span class="Apple-converted-space">                    </span>// Add marker to map</p>
-<p class="p1"><span class="Apple-converted-space">                    </span>const markerColor = ['red', 'green', 'orange', 'blue', 'purple'][queries.indexOf(item)];</p>
-<p class="p1"><span class="Apple-converted-space">                    </span>const marker = L.marker([elemLat, elemLon], {</p>
-<p class="p1"><span class="Apple-converted-space">                      </span>icon: L.icon({</p>
-<p class="p1"><span class="Apple-converted-space">                        </span>iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${markerColor}.png`,</p>
-<p class="p1"><span class="Apple-converted-space">                        </span>shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',</p>
-<p class="p1"><span class="Apple-converted-space">                        </span>iconSize: [25, 41],</p>
-<p class="p1"><span class="Apple-converted-space">                        </span>iconAnchor: [12, 41],</p>
-<p class="p1"><span class="Apple-converted-space">                        </span>popupAnchor: [1, -34],</p>
-<p class="p1"><span class="Apple-converted-space">                        </span>shadowSize: [41, 41]</p>
-<p class="p1"><span class="Apple-converted-space">                      </span>})</p>
-<p class="p1"><span class="Apple-converted-space">                    </span>}).addTo(map).bindPopup(`&lt;b&gt;${item.icon} ${element.tags?.name || item.type}&lt;/b&gt;&lt;br&gt;${distance.toFixed(2)} km`);</p>
-<p class="p2"><span class="Apple-converted-space">                    </span></p>
-<p class="p1"><span class="Apple-converted-space">                    </span>facilitiesMarkers.push(marker);</p>
-<p class="p1"><span class="Apple-converted-space">                  </span>}</p>
-<p class="p1"><span class="Apple-converted-space">                </span>}</p>
-<p class="p1"><span class="Apple-converted-space">              </span>});</p>
-<p class="p1"><span class="Apple-converted-space">            </span>}</p>
-<p class="p2"><span class="Apple-converted-space">            </span></p>
-<p class="p1"><span class="Apple-converted-space">            </span>completedQueries++;</p>
-<p class="p1"><span class="Apple-converted-space">            </span>if (completedQueries === queries.length) {</p>
-<p class="p1"><span class="Apple-converted-space">              </span>displayFacilities(facilities);</p>
-<p class="p1"><span class="Apple-converted-space">            </span>}</p>
-<p class="p1"><span class="Apple-converted-space">          </span>})</p>
-<p class="p1"><span class="Apple-converted-space">          </span>.catch(error =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">            </span>console.error('Overpass API error:', error);</p>
-<p class="p1"><span class="Apple-converted-space">            </span>completedQueries++;</p>
-<p class="p1"><span class="Apple-converted-space">            </span>if (completedQueries === queries.length) {</p>
-<p class="p1"><span class="Apple-converted-space">              </span>displayFacilities(facilities);</p>
-<p class="p1"><span class="Apple-converted-space">            </span>}</p>
-<p class="p1"><span class="Apple-converted-space">          </span>});</p>
-<p class="p1"><span class="Apple-converted-space">      </span>});</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// Calculate distance between two coordinates (in km)</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function calculateDistance(lat1, lon1, lat2, lon2) {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>const R = 6371; // Earth's radius in km</p>
-<p class="p1"><span class="Apple-converted-space">      </span>const dLat = (lat2 - lat1) * Math.PI / 180;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>const dLon = (lon2 - lon1) * Math.PI / 180;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +</p>
-<p class="p1"><span class="Apple-converted-space">                </span>Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *</p>
-<p class="p1"><span class="Apple-converted-space">                </span>Math.sin(dLon / 2) * Math.sin(dLon / 2);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));</p>
-<p class="p1"><span class="Apple-converted-space">      </span>return R * c;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// Display facilities in sidebar</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function displayFacilities(facilities) {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>const facilitiesList = document.getElementById('facilities-list');</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>if (facilities.length === 0) {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>facilitiesList.innerHTML = '&lt;div class="no-items"&gt;No facilities found nearby&lt;/div&gt;';</p>
-<p class="p1"><span class="Apple-converted-space">        </span>return;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>// Sort by distance</p>
-<p class="p1"><span class="Apple-converted-space">      </span>facilities.sort((a, b) =&gt; a.distance - b.distance);</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>let html = '';</p>
-<p class="p1"><span class="Apple-converted-space">      </span>facilities.forEach(facility =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>html += `</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;div class="facility-item"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">            </span>&lt;div class="facility-name"&gt;${facility.icon} ${facility.name}&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">            </span>&lt;span class="facility-type"&gt;${facility.type}&lt;/span&gt;</p>
-<p class="p1"><span class="Apple-converted-space">            </span>&lt;div class="facility-distance"&gt;<span class="s2">📏</span> ${facility.distance.toFixed(2)} km away&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>`;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>});</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>facilitiesList.innerHTML = html;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// Add friend</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function addFriend() {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>const name = document.getElementById('friend-name').value.trim();</p>
-<p class="p1"><span class="Apple-converted-space">      </span>const contact = document.getElementById('friend-contact').value.trim();</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>if (!name || !contact) {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>alert('Please enter friend name and contact information');</p>
-<p class="p1"><span class="Apple-converted-space">        </span>return;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>const friend = {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>id: Date.now(),</p>
-<p class="p1"><span class="Apple-converted-space">        </span>name: name,</p>
-<p class="p1"><span class="Apple-converted-space">        </span>contact: contact,</p>
-<p class="p1"><span class="Apple-converted-space">        </span>lat: 0,</p>
-<p class="p1"><span class="Apple-converted-space">        </span>lon: 0</p>
-<p class="p1"><span class="Apple-converted-space">      </span>};</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>friends.push(friend);</p>
-<p class="p1"><span class="Apple-converted-space">      </span>localStorage.setItem('friends', JSON.stringify(friends));</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>document.getElementById('friend-name').value = '';</p>
-<p class="p1"><span class="Apple-converted-space">      </span>document.getElementById('friend-contact').value = '';</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>displayFriends();</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// Display friends</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function displayFriends() {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>const friendsList = document.getElementById('friends-list');</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>if (friends.length === 0) {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>friendsList.innerHTML = '&lt;div class="no-items"&gt;No friends added yet&lt;/div&gt;';</p>
-<p class="p1"><span class="Apple-converted-space">        </span>return;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>let html = '';</p>
-<p class="p1"><span class="Apple-converted-space">      </span>friends.forEach(friend =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>html += `</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;div class="friend-item"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">            </span>&lt;div class="friend-name"&gt;<span class="s2">👤</span> ${friend.name}&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">            </span>&lt;div class="friend-contact"&gt;<span class="s2">📧</span> ${friend.contact}&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">            </span>&lt;div class="friend-actions"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">              </span>&lt;button class="btn-view" onclick="viewFriendLocation(${friend.id})"&gt;View&lt;/button&gt;</p>
-<p class="p1"><span class="Apple-converted-space">              </span>&lt;button class="btn-delete" onclick="deleteFriend(${friend.id})"&gt;Delete&lt;/button&gt;</p>
-<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">        </span>`;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>});</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>friendsList.innerHTML = html;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// Delete friend</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function deleteFriend(id) {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>if (confirm('Delete this friend?')) {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>friends = friends.filter(f =&gt; f.id !== id);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>localStorage.setItem('friends', JSON.stringify(friends));</p>
-<p class="p2"><span class="Apple-converted-space">        </span></p>
-<p class="p1"><span class="Apple-converted-space">        </span>if (markers[`friend-${id}`]) {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>markers[`friend-${id}`].remove();</p>
-<p class="p1"><span class="Apple-converted-space">        </span>}</p>
-<p class="p2"><span class="Apple-converted-space">        </span></p>
-<p class="p1"><span class="Apple-converted-space">        </span>displayFriends();</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// View friend location (simulated - in real app, would receive location from friend)</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function viewFriendLocation(id) {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>alert('In a real app, this would show your friend\'s live location.\n\nYou would need:\n1. A backend server to store locations\n2. Real-time updates (WebSocket/Firebase)\n3. Friend permission system');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// Generate share link</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function generateShareLink() {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>const link = `${window.location.href}?lat=${userLocation.lat.toFixed(5)}&amp;lon=${userLocation.lon.toFixed(5)}&amp;name=${encodeURIComponent('Friend Location')}`;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>document.getElementById('share-link').textContent = link;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>document.getElementById('share-link').style.display = 'block';</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// Copy to clipboard</p>
-<p class="p1"><span class="Apple-converted-space">    </span>function copyToClipboard() {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>const shareLink = document.getElementById('share-link').textContent;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>if (!shareLink) {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>alert('Please generate a share link first');</p>
-<p class="p1"><span class="Apple-converted-space">        </span>return;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}</p>
-<p class="p2"><span class="Apple-converted-space">      </span></p>
-<p class="p1"><span class="Apple-converted-space">      </span>navigator.clipboard.writeText(shareLink).then(() =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>alert('Share link copied to clipboard!');</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}).catch(() =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>alert('Failed to copy. Please try again.');</p>
-<p class="p1"><span class="Apple-converted-space">      </span>});</p>
-<p class="p1"><span class="Apple-converted-space">    </span>}</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// Initialize on page load</p>
-<p class="p1"><span class="Apple-converted-space">    </span>window.addEventListener('load', () =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>initMap();</p>
-<p class="p1"><span class="Apple-converted-space">      </span>getUserLocation();</p>
-<p class="p1"><span class="Apple-converted-space">      </span>displayFriends();</p>
-<p class="p1"><span class="Apple-converted-space">    </span>});</p>
-<p class="p2"><span class="Apple-converted-space">    </span></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// Refresh location every 30 seconds</p>
-<p class="p1"><span class="Apple-converted-space">    </span>setInterval(getUserLocation, 30000);</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;/script&gt;</p>
-<p class="p1">&lt;/body&gt;</p>
-<p class="p1">&lt;/html&gt;</p>
+  <div class="sidebar">
+    <div class="header">
+      <h1>📍 Location Sharing</h1>
+      <p>Share locations with friends & find nearby facilities</p>
+    </div>
+    <div class="content">
+      <div class="section">
+        <div class="section-title">My Location</div>
+        <div class="my-location-info">
+          <div id="address-text">Fetching location...</div>
+          <div class="coordinates" id="coordinates-text"></div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title">Friends</div>
+        <div class="friend-add">
+          <input type="text" id="friend-name" placeholder="Friend's name">
+          <input type="text" id="friend-contact" placeholder="Email or phone">
+          <button onclick="addFriend()">Add</button>
+        </div>
+        <div id="friends-list"></div>
+      </div>
+      <div class="section share-section">
+        <div class="section-title">Share</div>
+        <button class="share-button" onclick="generateShareLink()">📤 Generate Share Link</button>
+        <button class="copy-link" onclick="copyToClipboard()">Copy Link</button>
+        <div id="share-link" class="share-link" style="display: none;"></div>
+      </div>
+      <div class="section">
+        <div class="section-title">
+          Nearby Facilities
+          <span class="tooltip">
+            ⓘ
+            <span class="tooltiptext">Public facilities within 1 km from your location</span>
+          </span>
+        </div>
+        <div id="facilities-list" class="loading">Loading facilities...</div>
+      </div>
+    </div>
+  </div>
+  <div class="map-container">
+    <div id="map"></div>
+  </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    let userLocation = { lat: 0, lon: 0 };
+    let friends = JSON.parse(localStorage.getItem('friends')) || [];
+    let map;
+    let markers = {};
+    let facilitiesMarkers = [];
+    
+    function initMap() {
+      map = L.map('map').setView([0, 0], 2);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+    }
+    
+    function getUserLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            userLocation.lat = position.coords.latitude;
+            userLocation.lon = position.coords.longitude;
+            map.setView([userLocation.lat, userLocation.lon], 16);
+            if (markers['me']) markers['me'].remove();
+            markers['me'] = L.marker([userLocation.lat, userLocation.lon], {
+              icon: L.icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowSize: [41, 41]
+              })
+            }).addTo(map).bindPopup("<b>📍 You</b>").openPopup();
+            reverseGeocode(userLocation.lat, userLocation.lon);
+            loadNearbyFacilities(userLocation.lat, userLocation.lon);
+            document.getElementById('coordinates-text').textContent = `${userLocation.lat.toFixed(5)}, ${userLocation.lon.toFixed(5)}`;
+          },
+          (error) => {
+            console.error('Geolocation error:', error);
+            document.getElementById('address-text').textContent = "Unable to retrieve location. Please allow location access.";
+          }
+        );
+      }
+    }
+    
+    function reverseGeocode(lat, lon) {
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=en`)
+        .then(response => response.json())
+        .then(data => {
+          if (data && data.display_name) {
+            document.getElementById('address-text').textContent = data.display_name;
+          }
+        })
+        .catch(error => console.error('Geocoding error:', error));
+    }
+    
+    function loadNearbyFacilities(lat, lon) {
+      const facilitiesList = document.getElementById('facilities-list');
+      facilitiesList.innerHTML = '<div class="loading">Searching for facilities...</div>';
+      facilitiesMarkers.forEach(marker => marker.remove());
+      facilitiesMarkers = [];
+      const facilities = [];
+      const queries = [
+        { type: 'Public Toilet', query: 'node[amenity=toilets]', icon: '🚻' },
+        { type: 'Bus Station', query: 'node[amenity=bus_station]', icon: '🚌' },
+        { type: 'Train Station', query: 'node[amenity=train_station]', icon: '🚂' },
+        { type: 'Supermarket', query: 'node[shop=supermarket]', icon: '🛒' },
+        { type: 'Restaurant', query: 'node[amenity=restaurant]', icon: '🍽️' }
+      ];
+      let completedQueries = 0;
+      queries.forEach(item => {
+        const bbox = `${lon - 0.009},${lat - 0.009},${lon + 0.009},${lat + 0.009}`;
+        const overpassUrl = `https://overpass-api.de/api/interpreter?data=[bbox:${bbox}];${item.query};out center;`;
+        fetch(overpassUrl)
+          .then(response => response.json())
+          .then(data => {
+            if (data.elements) {
+              data.elements.forEach(element => {
+                const elemLat = element.center?.lat || element.lat;
+                const elemLon = element.center?.lon || element.lon;
+                if (elemLat && elemLon) {
+                  const distance = calculateDistance(lat, lon, elemLat, elemLon);
+                  if (distance <= 1) {
+                    facilities.push({
+                      type: item.type,
+                      icon: item.icon,
+                      name: element.tags?.name || `${item.type} #${facilities.length + 1}`,
+                      lat: elemLat,
+                      lon: elemLon,
+                      distance: distance
+                    });
+                    const markerColor = ['red', 'green', 'orange', 'blue', 'purple'][queries.indexOf(item)];
+                    const marker = L.marker([elemLat, elemLon], {
+                      icon: L.icon({
+                        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${markerColor}.png`,
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                      })
+                    }).addTo(map).bindPopup(`<b>${item.icon} ${element.tags?.name || item.type}</b><br>${distance.toFixed(2)} km`);
+                    facilitiesMarkers.push(marker);
+                  }
+                }
+              });
+            }
+            completedQueries++;
+            if (completedQueries === queries.length) {
+              displayFacilities(facilities);
+            }
+          })
+          .catch(error => {
+            console.error('Overpass API error:', error);
+            completedQueries++;
+            if (completedQueries === queries.length) {
+              displayFacilities(facilities);
+            }
+          });
+      });
+    }
+    
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+    
+    function displayFacilities(facilities) {
+      const facilitiesList = document.getElementById('facilities-list');
+      if (facilities.length === 0) {
+        facilitiesList.innerHTML = '<div class="no-items">No facilities found nearby</div>';
+        return;
+      }
+      facilities.sort((a, b) => a.distance - b.distance);
+      let html = '';
+      facilities.forEach(facility => {
+        html += `<div class="facility-item"><div class="facility-name">${facility.icon} ${facility.name}</div><span class="facility-type">${facility.type}</span><div class="facility-distance">📏 ${facility.distance.toFixed(2)} km away</div></div>`;
+      });
+      facilitiesList.innerHTML = html;
+    }
+    
+    function addFriend() {
+      const name = document.getElementById('friend-name').value.trim();
+      const contact = document.getElementById('friend-contact').value.trim();
+      if (!name || !contact) {
+        alert('Please enter friend name and contact information');
+        return;
+      }
+      const friend = { id: Date.now(), name: name, contact: contact, lat: 0, lon: 0 };
+      friends.push(friend);
+      localStorage.setItem('friends', JSON.stringify(friends));
+      document.getElementById('friend-name').value = '';
+      document.getElementById('friend-contact').value = '';
+      displayFriends();
+    }
+    
+    function displayFriends() {
+      const friendsList = document.getElementById('friends-list');
+      if (friends.length === 0) {
+        friendsList.innerHTML = '<div class="no-items">No friends added yet</div>';
+        return;
+      }
+      let html = '';
+      friends.forEach(friend => {
+        html += `<div class="friend-item"><div class="friend-name">👤 ${friend.name}</div><div class="friend-contact">📧 ${friend.contact}</div><div class="friend-actions"><button class="btn-view" onclick="viewFriendLocation(${friend.id})">View</button><button class="btn-delete" onclick="deleteFriend(${friend.id})">Delete</button></div></div>`;
+      });
+      friendsList.innerHTML = html;
+    }
+    
+    function deleteFriend(id) {
+      if (confirm('Delete this friend?')) {
+        friends = friends.filter(f => f.id !== id);
+        localStorage.setItem('friends', JSON.stringify(friends));
+        if (markers[`friend-${id}`]) markers[`friend-${id}`].remove();
+        displayFriends();
+      }
+    }
+    
+    function viewFriendLocation(id) {
+      alert('In a real app, this would show your friend\'s live location.\n\nYou would need:\n1. A backend server to store locations\n2. Real-time updates (WebSocket/Firebase)\n3. Friend permission system');
+    }
+    
+    function generateShareLink() {
+      const link = `${window.location.href}?lat=${userLocation.lat.toFixed(5)}&lon=${userLocation.lon.toFixed(5)}&name=${encodeURIComponent('Friend Location')}`;
+      document.getElementById('share-link').textContent = link;
+      document.getElementById('share-link').style.display = 'block';
+    }
+    
+    function copyToClipboard() {
+      const shareLink = document.getElementById('share-link').textContent;
+      if (!shareLink) {
+        alert('Please generate a share link first');
+        return;
+      }
+      navigator.clipboard.writeText(shareLink).then(() => {
+        alert('Share link copied to clipboard!');
+      }).catch(() => {
+        alert('Failed to copy. Please try again.');
+      });
+    }
+    
+    window.addEventListener('load', () => {
+      initMap();
+      getUserLocation();
+      displayFriends();
+    });
+    
+    setInterval(getUserLocation, 30000);
+  </script>
 </body>
 </html>
