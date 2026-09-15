@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Current Location</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background-color: #f4f4f9;
+    }
+    #address-container {
+      background-color: #007bff;
+      color: #ffffff;
+      padding: 16px;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      z-index: 1000;
+    }
+    #address-title {
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      opacity: 0.8;
+      margin-bottom: 4px;
+    }
+    #address-text {
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+    #map {
+      flex: 1;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="address-container">
+    <div id="address-title">Your Current Address</div>
+    <div id="address-text">Fetching location...</div>
+  </div>
+
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <script>
+    // Initialize the Leaflet map centered at (0, 0)
+    const map = L.map('map').setView([0, 0], 2);
+
+    // Load OpenStreetMap tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    const addressText = document.getElementById('address-text');
+
+    // Get live geolocation from the browser
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+
+          // Center map on user location and zoom in
+          map.setView([lat, lon], 16);
+
+          // Add a marker on the user's position
+          L.marker([lat, lon]).addTo(map)
+            .bindPopup("<b>You are here!</b>")
+            .openPopup();
+
+          // Reverse geocoding request to fetch address string via Nominatim
+          fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=en`)
+            .then(response => response.json())
+            .then(data => {
+              if (data && data.display_name) {
+                addressText.textContent = data.display_name;
+              } else {
+                addressText.textContent = `Coordinates: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+              }
+            })
+            .catch(error => {
+              console.error('Error fetching address:', error);
+              addressText.textContent = `Latitude: ${lat}, Longitude: ${lon}`;
+            });
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
+          addressText.textContent = "Unable to retrieve location. Please allow location access in your browser.";
+        }
+      );
+    } else {
+      addressText.textContent = "Geolocation is not supported by your browser.";
+    }
+  </script>
+</body>
+</html>
