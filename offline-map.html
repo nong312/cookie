@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline Map & Route Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; height: 100vh; background-color: #f4f4f9; }
+    .sidebar { width: 300px; background-color: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.1); overflow-y: auto; display: flex; flex-direction: column; z-index: 999; }
+    .header { background-color: #007bff; color: white; padding: 16px; text-align: center; border-bottom: 2px solid #0056b3; }
+    .header h1 { font-size: 1.2rem; margin-bottom: 8px; }
+    .content { flex: 1; overflow-y: auto; padding: 12px; }
+    .section { margin-bottom: 16px; background-color: #f9f9f9; padding: 12px; border-radius: 8px; border-left: 4px solid #007bff; }
+    .section-title { font-weight: bold; font-size: 0.95rem; color: #333; margin-bottom: 10px; }
+    .info-box { background-color: #e7f3ff; padding: 8px; border-radius: 4px; font-size: 0.85rem; color: #0056b3; margin-bottom: 8px; }
+    .info-text { font-size: 0.9rem; margin-bottom: 4px; }
+    .button-group { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+    .btn { flex: 1; padding: 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: bold; min-width: 100px; transition: background-color 0.3s; }
+    .btn-primary { background-color: #007bff; color: white; }
+    .btn-primary:hover { background-color: #0056b3; }
+    .btn-success { background-color: #28a745; color: white; }
+    .btn-success:hover { background-color: #218838; }
+    .btn-danger { background-color: #dc3545; color: white; }
+    .btn-danger:hover { background-color: #c82333; }
+    .btn-warning { background-color: #ffc107; color: #333; }
+    .btn-warning:hover { background-color: #e0a800; }
+    .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+    .status { padding: 8px; border-radius: 4px; font-size: 0.85rem; margin-bottom: 8px; }
+    .status-online { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .status-offline { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .progress-bar { width: 100%; height: 20px; background-color: #ddd; border-radius: 4px; overflow: hidden; margin: 8px 0; }
+    .progress-fill { height: 100%; background-color: #28a745; width: 0%; transition: width 0.3s; }
+    .map-container { flex: 1; display: flex; flex-direction: column; }
+    #map { flex: 1; width: 100%; }
+    .stat-item { background-color: #fff; border: 1px solid #ddd; padding: 8px; margin-bottom: 6px; border-radius: 4px; font-size: 0.85rem; }
+    .stat-label { font-weight: bold; color: #333; }
+    .stat-value { color: #007bff; font-size: 0.95rem; }
+    .loading { text-align: center; color: #666; font-size: 0.85rem; }
+    .storage-info { background-color: #fff3cd; padding: 8px; border-radius: 4px; font-size: 0.8rem; color: #856404; margin-bottom: 8px; }
+    @media (max-width: 768px) { body { flex-direction: column; } .sidebar { width: 100%; height: 35%; } .map-container { height: 65%; } }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <div class="header">
+      <h1>🗺️ Offline Map</h1>
+      <p>Download & Track Routes</p>
+    </div>
+    <div class="content">
+      <!-- Status Section -->
+      <div class="section">
+        <div class="section-title">Status</div>
+        <div id="online-status" class="status status-online">🟢 Online</div>
+        <div class="info-box" id="location-info">📍 Waiting for location...</div>
+      </div>
+
+      <!-- Download Maps Section -->
+      <div class="section">
+        <div class="section-title">📥 Download Maps</div>
+        <div class="info-text">Download map within 5km for offline use</div>
+        <div class="button-group">
+          <button class="btn btn-primary" onclick="downloadMaps()">Download Map</button>
+          <button class="btn btn-danger" onclick="clearMaps()">Clear Maps</button>
+        </div>
+        <div id="download-progress" style="display:none;">
+          <div class="progress-bar">
+            <div id="progress-fill" class="progress-fill"></div>
+          </div>
+          <div class="loading" id="progress-text">0/0 tiles</div>
+        </div>
+        <div class="storage-info" id="storage-info">Storage: Calculating...</div>
+      </div>
+
+      <!-- Route Tracking Section -->
+      <div class="section">
+        <div class="section-title">📍 Route Tracking</div>
+        <div class="button-group">
+          <button class="btn btn-success" id="track-btn" onclick="toggleTracking()">Start Tracking</button>
+          <button class="btn btn-warning" onclick="resetRoute()">Reset Route</button>
+        </div>
+        <div id="tracking-stats">
+          <div class="stat-item">
+            <span class="stat-label">Distance:</span>
+            <span class="stat-value" id="distance">0 km</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Duration:</span>
+            <span class="stat-value" id="duration">00:00:00</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Points:</span>
+            <span class="stat-value" id="points">0</span>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="downloadRoute()" style="width: 100%; margin-top: 8px;">💾 Save Route</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="map-container">
+    <div id="map"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    let map;
+    let userLocation = { lat: 0, lon: 0 };
+    let isTracking = false;
+    let trackingData = { points: [], startTime: null, startLocation: null };
+    let routePolyline;
+    let userMarker;
+    let mapTilesCache = {};
+    let downloadingTiles = false;
+
+    // Initialize map
+    function initMap() {
+      map = L.map('map').setView([0, 0], 15);
+      const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+      
+      // Store tile layer reference for offline use
+      map.tileLayer = tileLayer;
+    }
+
+    // Check online/offline status
+    function updateOnlineStatus() {
+      const statusDiv = document.getElementById('online-status');
+      if (navigator.onLine) {
+        statusDiv.className = 'status status-online';
+        statusDiv.textContent = '🟢 Online - Internet Available';
+      } else {
+        statusDiv.className = 'status status-offline';
+        statusDiv.textContent = '🔴 Offline - Using Cached Maps';
+      }
+    }
+
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    // Get user location
+    function getUserLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            userLocation.lat = position.coords.latitude;
+            userLocation.lon = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
+
+            map.setView([userLocation.lat, userLocation.lon], 15);
+
+            if (userMarker) userMarker.remove();
+            userMarker = L.circleMarker([userLocation.lat, userLocation.lon], {
+              radius: 8,
+              fillColor: '#007bff',
+              color: '#fff',
+              weight: 2,
+              opacity: 1,
+              fillOpacity: 0.8
+            }).addTo(map).bindPopup(`<b>You are here</b><br>Accuracy: ${Math.round(accuracy)}m`);
+
+            document.getElementById('location-info').innerHTML = 
+              `📍 ${userLocation.lat.toFixed(5)}, ${userLocation.lon.toFixed(5)}<br>Accuracy: ${Math.round(accuracy)}m`;
+
+            if (isTracking) {
+              recordTrackingPoint();
+            }
+          },
+          (error) => {
+            console.error('Geolocation error:', error);
+            document.getElementById('location-info').textContent = 'Location access denied';
+          }
+        );
+      }
+    }
+
+    // Download map tiles
+    async function downloadMaps() {
+      if (!navigator.onLine) {
+        alert('You need internet to download maps');
+        return;
+      }
+
+      if (userLocation.lat === 0) {
+        alert('Please enable location first');
+        return;
+      }
+
+      downloadingTiles = true;
+      document.getElementById('download-progress').style.display = 'block';
+      const progressFill = document.getElementById('progress-fill');
+      const progressText = document.getElementById('progress-text');
+
+      try {
+        const zoom = 15;
+        const radius = 5; // 5km
+        const metersPerPixel = 40075016.686 / Math.pow(2, zoom + 8);
+        const pixelsNeeded = (radius * 1000) / metersPerPixel;
+
+        const tileSize = 256;
+        const tilesNeeded = Math.ceil(pixelsNeeded / tileSize);
+
+        // Calculate tile coordinates
+        const tiles = [];
+        function latLngToTile(lat, lng, z) {
+          const n = Math.pow(2, z);
+          const x = Math.floor(((lng + 180) / 360) * n);
+          const y = Math.floor(((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2) * n);
+          return { x, y, z };
+        }
+
+        const centerTile = latLngToTile(userLocation.lat, userLocation.lon, zoom);
+        for (let dx = -tilesNeeded; dx <= tilesNeeded; dx++) {
+          for (let dy = -tilesNeeded; dy <= tilesNeeded; dy++) {
+            tiles.push({ x: centerTile.x + dx, y: centerTile.y + dy, z: zoom });
+          }
+        }
+
+        const totalTiles = tiles.length;
+        let downloadedTiles = 0;
+
+        for (const tile of tiles) {
+          const tileUrl = `https://tile.openstreetmap.org/${tile.z}/${tile.x}/${tile.y}.png`;
+          const tileKey = `tile_${tile.z}_${tile.x}_${tile.y}`;
+
+          try {
+            const response = await fetch(tileUrl);
+            if (response.ok) {
+              const blob = await response.blob();
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                localStorage.setItem(tileKey, e.target.result);
+              };
+              reader.readAsDataURL(blob);
+            }
+          } catch (e) {
+            console.error(`Failed to download tile ${tileKey}:`, e);
+          }
+
+          downloadedTiles++;
+          const progress = (downloadedTiles / totalTiles) * 100;
+          progressFill.style.width = progress + '%';
+          progressText.textContent = `${downloadedTiles}/${totalTiles} tiles downloaded`;
+        }
+
+        alert(`Downloaded ${downloadedTiles} map tiles for offline use!`);
+        updateStorageInfo();
+      } catch (error) {
+        console.error('Download error:', error);
+        alert('Error downloading maps');
+      } finally {
+        downloadingTiles = false;
+        document.getElementById('download-progress').style.display = 'none';
+      }
+    }
+
+    // Clear cached maps
+    function clearMaps() {
+      if (confirm('Delete all cached maps? This will free up storage.')) {
+        const keysToDelete = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key.startsWith('tile_')) {
+            keysToDelete.push(key);
+          }
+        }
+        keysToDelete.forEach(key => localStorage.removeItem(key));
+        updateStorageInfo();
+        alert(`Deleted ${keysToDelete.length} cached tiles`);
+      }
+    }
+
+    // Toggle route tracking
+    function toggleTracking() {
+      const btn = document.getElementById('track-btn');
+      if (!isTracking) {
+        isTracking = true;
+        trackingData = { points: [], startTime: Date.now(), startLocation: { ...userLocation } };
+        btn.textContent = 'Stop Tracking';
+        btn.className = 'btn btn-danger';
+        routePolyline = L.polyline([], { color: 'red', weight: 3, opacity: 0.7 }).addTo(map);
+      } else {
+        isTracking = false;
+        btn.textContent = 'Start Tracking';
+        btn.className = 'btn btn-success';
+      }
+    }
+
+    // Record tracking point
+    function recordTrackingPoint() {
+      if (!isTracking) return;
+
+      const point = [userLocation.lat, userLocation.lon];
+      trackingData.points.push({ ...userLocation, timestamp: Date.now() });
+
+      if (routePolyline) {
+        routePolyline.addLatLng(point);
+      }
+
+      updateStats();
+    }
+
+    // Update tracking statistics
+    function updateStats() {
+      const points = trackingData.points;
+      document.getElementById('points').textContent = points.length;
+
+      // Calculate distance
+      let distance = 0;
+      for (let i = 1; i < points.length; i++) {
+        const p1 = points[i - 1];
+        const p2 = points[i];
+        distance += calculateDistance(p1.lat, p1.lon, p2.lat, p2.lon);
+      }
+      document.getElementById('distance').textContent = distance.toFixed(2) + ' km';
+
+      // Calculate duration
+      if (trackingData.startTime) {
+        const elapsed = Math.floor((Date.now() - trackingData.startTime) / 1000);
+        const hours = Math.floor(elapsed / 3600);
+        const minutes = Math.floor((elapsed % 3600) / 60);
+        const seconds = elapsed % 60;
+        document.getElementById('duration').textContent = 
+          `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      }
+    }
+
+    // Calculate distance between two points
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    // Reset route
+    function resetRoute() {
+      if (confirm('Clear the current route?')) {
+        isTracking = false;
+        trackingData = { points: [], startTime: null, startLocation: null };
+        if (routePolyline) {
+          map.removeLayer(routePolyline);
+          routePolyline = null;
+        }
+        document.getElementById('track-btn').textContent = 'Start Tracking';
+        document.getElementById('track-btn').className = 'btn btn-success';
+        document.getElementById('distance').textContent = '0 km';
+        document.getElementById('duration').textContent = '00:00:00';
+        document.getElementById('points').textContent = '0';
+      }
+    }
+
+    // Download route as JSON
+    function downloadRoute() {
+      if (trackingData.points.length === 0) {
+        alert('No route to save');
+        return;
+      }
+
+      const routeData = {
+        startTime: new Date(trackingData.startTime).toISOString(),
+        points: trackingData.points,
+        startLocation: trackingData.startLocation
+      };
+
+      const dataStr = JSON.stringify(routeData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `route_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      alert('Route saved!');
+    }
+
+    // Update storage info
+    function updateStorageInfo() {
+      let totalSize = 0;
+      let tileCount = 0;
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith('tile_')) {
+          tileCount++;
+          const item = localStorage.getItem(key);
+          totalSize += item.length;
+        }
+      }
+      const sizeMB = (totalSize / 1024 / 1024).toFixed(2);
+      document.getElementById('storage-info').textContent = 
+        `Storage: ${tileCount} tiles (${sizeMB} MB) - Max: ~5-10MB available`;
+    }
+
+    // Initialize
+    window.addEventListener('load', () => {
+      initMap();
+      updateOnlineStatus();
+      updateStorageInfo();
+      getUserLocation();
+      setInterval(getUserLocation, 5000); // Update location every 5 seconds
+    });
+  </script>
+</body>
+</html>
