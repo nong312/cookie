@@ -1,248 +1,40 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Location Sharing Map</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <style>
-    * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; }
-    body { font-family: Arial, sans-serif; background: #f4f6f8; color: #1f2937; }
-    .app { display: flex; height: 100vh; }
-    .panel { width: 370px; flex: 0 0 370px; overflow-y: auto; padding: 18px; background: #fff; box-shadow: 2px 0 12px rgba(0,0,0,.12); z-index: 1000; }
-    h1 { margin: 0 0 6px; font-size: 1.35rem; color: #075985; }
-    .intro, .hint { color: #64748b; font-size: .86rem; line-height: 1.45; }
-    .intro { margin: 0 0 18px; }
-    .hint { margin: 8px 0 0; }
-    .section { margin-bottom: 16px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
-    .section h2 { margin: 0 0 10px; font-size: 1rem; }
-    label { display: block; margin: 8px 0 4px; font-size: .85rem; font-weight: bold; }
-    input, textarea { width: 100%; padding: 9px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: .92rem; font-family: inherit; }
-    textarea { min-height: 72px; resize: vertical; }
-    input:focus, textarea:focus { outline: 2px solid #93c5fd; border-color: #2563eb; }
-    button { width: 100%; margin-top: 10px; padding: 10px; border: 0; border-radius: 6px; color: #fff; background: #2563eb; font-weight: bold; cursor: pointer; }
-    button:hover { background: #1d4ed8; }
-    button.secondary { background: #059669; }
-    button.secondary:hover { background: #047857; }
-    button.gray { background: #64748b; }
-    button.gray:hover { background: #475569; }
-    .status { margin-top: 9px; padding: 8px; border-radius: 6px; background: #e0f2fe; color: #075985; font-size: .84rem; line-height: 1.4; word-break: break-word; }
-    .address { font-weight: bold; line-height: 1.4; }
-    .coordinates { margin-top: 5px; color: #475569; font-size: .82rem; }
-    .share-link { display: none; margin-top: 10px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #1d4ed8; font-size: .76rem; line-height: 1.4; word-break: break-all; }
-    #map { flex: 1 1 auto; min-width: 0; min-height: 0; }
-    @media (max-width: 760px) { .app { display: block; height: auto; } .panel { width: 100%; height: auto; } #map { height: 55vh; min-height: 360px; } }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Location Sharing Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+*{box-sizing:border-box}html,body{height:100%;margin:0}body{font-family:Arial,sans-serif;background:#f4f6f8;color:#1f2937}.app{display:flex;height:100vh}.panel{width:370px;flex:0 0 370px;overflow-y:auto;padding:18px;background:#fff;box-shadow:2px 0 12px #0002;z-index:1000}h1{margin:0 0 6px;font-size:1.35rem;color:#075985}.intro,.hint{color:#64748b;font-size:.86rem;line-height:1.45}.intro{margin:0 0 18px}.section{margin-bottom:16px;padding:14px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc}.section h2{margin:0 0 10px;font-size:1rem}label{display:block;margin:8px 0 4px;font-size:.85rem;font-weight:bold}input,textarea{width:100%;padding:9px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:.92rem;font-family:inherit}textarea{min-height:72px;resize:vertical}button{width:100%;margin-top:10px;padding:10px;border:0;border-radius:6px;color:#fff;background:#2563eb;font-weight:bold;cursor:pointer}button:hover{background:#1d4ed8}button.secondary{background:#059669}button.gray{background:#64748b}.status{margin-top:9px;padding:8px;border-radius:6px;background:#e0f2fe;color:#075985;font-size:.84rem;line-height:1.4;word-break:break-word}.address{font-weight:bold;line-height:1.4}.coordinates{margin-top:5px;color:#475569;font-size:.82rem}.share-link{display:none;margin-top:10px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#1d4ed8;font-size:.76rem;word-break:break-all}#map{flex:1;min-width:0;min-height:0}.person-icon{width:34px;height:42px;display:flex;align-items:center;justify-content:center;font-size:30px;text-shadow:0 1px 2px #fff}.leaflet-popup-content{line-height:1.45;min-width:190px}.popup-title{font-weight:bold;font-size:1rem}@media(max-width:760px){.app{display:block;height:auto}.panel{width:100%;height:auto}#map{height:55vh;min-height:360px}}
+</style>
 </head>
-<body>
-  <div class="app">
-    <aside class="panel">
-      <h1>📍 Location Sharing Map</h1>
-      <p class="intro">Your location is detected automatically. Share a link with a friend, or paste your friend's coordinates or sharing link below.</p>
-
-      <section class="section">
-        <h2>My current location</h2>
-        <div id="my-address" class="address">Requesting your location…</div>
-        <div id="my-coordinates" class="coordinates">Coordinates: waiting for GPS</div>
-        <button id="locate-button" type="button">Refresh my location</button>
-        <button id="clear-track-button" class="gray" type="button">Clear walking track</button>
-        <div id="my-status" class="status">Allow location access when your browser asks. GPS works only on HTTPS or localhost.</div>
-      </section>
-
-      <section class="section">
-        <h2>Friend's location</h2>
-        <label for="friend-name">Friend's name (optional)</label>
-        <input id="friend-name" type="text" placeholder="For example, Alex">
-        <label for="friend-data">Paste coordinates or a sharing link</label>
-        <textarea id="friend-data" placeholder="Paste a link, or coordinates such as: -33.8688, 151.2093"></textarea>
-        <button id="show-friend-button" class="secondary" type="button">Show friend's location</button>
-        <div id="friend-address" class="address"></div>
-        <div id="friend-status" class="status">Paste your friend's link or latitude, longitude, then press the button.</div>
-      </section>
-
-      <section class="section">
-        <h2>Share my location</h2>
-        <p class="hint">Generate a link containing your current latitude, longitude and address. Your friend can send this link back to you.</p>
-        <button id="share-button" type="button">Generate location link</button>
-        <button id="copy-button" class="gray" type="button">Copy link</button>
-        <div id="share-link" class="share-link"></div>
-      </section>
-    </aside>
-    <main id="map" aria-label="Map"></main>
-  </div>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    const map = L.map('map', {
-      zoomControl: true,
-      scrollWheelZoom: true,
-      dragging: true,
-      doubleClickZoom: true,
-      boxZoom: true,
-      keyboard: true,
-      touchZoom: true,
-      tap: true
-    }).setView([20, 0], 2);
-
-    L.control.zoom({ position: 'topright' }).addTo(map);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19, attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
-
-    let myMarker = null;
-    let friendMarker = null;
-    let watchId = null;
-    let trackPoints = [];
-    let trackLine = L.polyline([], { color: '#2563eb', weight: 5, opacity: .8 }).addTo(map);
-
-    const escapeHtml = value => String(value).replace(/[&<>'"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[c]));
-    const validCoordinates = (lat, lon) => Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
-    const setStatus = (id, text) => { document.getElementById(id).textContent = text; };
-
-    function createColoredMarker(color) {
-      const colorName = color === 'friend' ? 'green' : 'blue';
-      return L.icon({
-        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${colorName}.png`,
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
-      });
-    }
-
-    function offsetMarkerPosition(lat, lon, kind) {
-      if (kind !== 'friend' || !myMarker) return { lat, lon };
-      const myPos = myMarker.getLatLng();
-      const distance = map.distance(myPos, [lat, lon]);
-      if (distance > 20) return { lat, lon };
-
-      const offset = 0.00025;
-      const offsetLat = (lat >= myPos.lat) ? offset : -offset;
-      const offsetLon = (lon >= myPos.lng) ? offset : -offset;
-      return { lat: lat + offsetLat, lon: lon + offsetLon };
-    }
-
-    function showMarker(kind, lat, lon, popup, forceSetView = true) {
-      const adjusted = offsetMarkerPosition(lat, lon, kind);
-      const marker = L.marker([adjusted.lat, adjusted.lon], { icon: createColoredMarker(kind) }).addTo(map).bindPopup(popup);
-
-      if (kind === 'my') {
-        if (myMarker) map.removeLayer(myMarker);
-        myMarker = marker;
-      } else {
-        if (friendMarker) map.removeLayer(friendMarker);
-        friendMarker = marker;
-      }
-
-      marker.openPopup();
-      if (forceSetView) map.setView([adjusted.lat, adjusted.lon], 16);
-    }
-
-    async function reverseGeocode(lat, lon, targetId) {
-      try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=18&addressdetails=1&accept-language=en`);
-        if (!response.ok) throw new Error('Address lookup failed');
-        const data = await response.json();
-        const a = data.address || {};
-        const parts = [
-          a.house_number,
-          a.road || a.street,
-          a.suburb || a.neighbourhood || a.quarter,
-          a.city || a.town || a.village || a.municipality,
-          a.state || a.region,
-          a.postcode,
-          a.country
-        ].filter(Boolean);
-        document.getElementById(targetId).textContent = parts.length ? parts.join(', ') : (data.display_name || 'Address unavailable');
-      } catch (error) {
-        document.getElementById(targetId).textContent = 'Address unavailable (coordinates are still shown).';
-      }
-    }
-
-    function updateMyLocation(position, addToTrack) {
-      const { latitude: lat, longitude: lon, accuracy } = position.coords;
-      document.getElementById('my-coordinates').textContent = `Latitude: ${lat.toFixed(6)} | Longitude: ${lon.toFixed(6)} | Accuracy: ±${Math.round(accuracy)} m`;
-      showMarker('my', lat, lon, `<b>📍 My location</b><br>${lat.toFixed(6)}, ${lon.toFixed(6)}`);
-      reverseGeocode(lat, lon, 'my-address');
-      if (addToTrack && (!trackPoints.length || map.distance(trackPoints[trackPoints.length - 1], [lat, lon]) >= 3)) {
-        trackPoints.push([lat, lon]);
-        trackLine.setLatLngs(trackPoints);
-      }
-      setStatus('my-status', 'Location updated. Your walking track is being recorded while this page is open.');
-    }
-
-    function locationError(error) {
-      setStatus('my-status', `Unable to get your location: ${error.message}. Check browser permission and use HTTPS.`);
-    }
-
-    function startLocationTracking() {
-      if (!navigator.geolocation) return locationError({ message: 'Geolocation is not supported by this browser' });
-      setStatus('my-status', 'Requesting GPS location…');
-      navigator.geolocation.getCurrentPosition(position => updateMyLocation(position, true), locationError, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
-      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-      watchId = navigator.geolocation.watchPosition(position => updateMyLocation(position, true), locationError, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
-    }
-
-    function parseFriendData(raw) {
-      const text = raw.trim();
-      try {
-        const url = new URL(text);
-        const p = url.searchParams;
-        const lat = Number.parseFloat(p.get('sharedLat') || p.get('lat'));
-        const lon = Number.parseFloat(p.get('sharedLon') || p.get('lon') || p.get('lng'));
-        if (validCoordinates(lat, lon)) return { lat, lon };
-      } catch (_) { /* Not a URL; try plain coordinates below. */ }
-      const numbers = text.match(/[-+]?\d+(?:\.\d+)?/g) || [];
-      if (numbers.length >= 2) {
-        const lat = Number.parseFloat(numbers[0]);
-        const lon = Number.parseFloat(numbers[1]);
-        if (validCoordinates(lat, lon)) return { lat, lon };
-      }
-      return null;
-    }
-
-    document.getElementById('locate-button').addEventListener('click', startLocationTracking);
-    document.getElementById('clear-track-button').addEventListener('click', () => { trackPoints = []; trackLine.setLatLngs([]); setStatus('my-status', 'Walking track cleared. Tracking will continue.'); });
-
-    document.getElementById('show-friend-button').addEventListener('click', () => {
-      const coords = parseFriendData(document.getElementById('friend-data').value);
-      const name = document.getElementById('friend-name').value.trim() || 'Friend';
-      if (!coords) return setStatus('friend-status', 'Could not find valid latitude and longitude. Paste a sharing link or “latitude, longitude”.');
-      showMarker('friend', coords.lat, coords.lon, `<b>👤 ${escapeHtml(name)}</b><br>${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)}`, true);
-      setStatus('friend-status', `${name}'s location is shown: ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)}`);
-      reverseGeocode(coords.lat, coords.lon, 'friend-address');
-    });
-
-    document.getElementById('share-button').addEventListener('click', () => {
-      if (!myMarker) return setStatus('my-status', 'Your location is not ready yet. Please allow GPS access first.');
-      const point = myMarker.getLatLng();
-      const url = new URL(window.location.href);
-      url.search = new URLSearchParams({ sharedLat: point.lat.toFixed(6), sharedLon: point.lng.toFixed(6), sharedName: 'Friend location' }).toString();
-      const output = document.getElementById('share-link');
-      output.textContent = url.toString(); output.style.display = 'block';
-    });
-
-    document.getElementById('copy-button').addEventListener('click', async () => {
-      const link = document.getElementById('share-link').textContent;
-      if (!link) return alert('Generate a location link first.');
-      try { await navigator.clipboard.writeText(link); alert('Location link copied.'); }
-      catch (_) { alert('Copy failed. Please select and copy the link manually.'); }
-    });
-
-    function loadSharedLocation() {
-      const p = new URLSearchParams(window.location.search);
-      const lat = Number.parseFloat(p.get('sharedLat')); const lon = Number.parseFloat(p.get('sharedLon'));
-      if (!validCoordinates(lat, lon)) return;
-      const name = p.get('sharedName') || 'Friend';
-      showMarker('friend', lat, lon, `<b>📤 ${escapeHtml(name)}</b><br>${lat.toFixed(6)}, ${lon.toFixed(6)}`, true);
-      document.getElementById('friend-data').value = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
-      setStatus('friend-status', `Shared location loaded: ${lat.toFixed(6)}, ${lon.toFixed(6)}`);
-      reverseGeocode(lat, lon, 'friend-address');
-    }
-
-    window.addEventListener('load', () => { setTimeout(() => map.invalidateSize(), 50); loadSharedLocation(); startLocationTracking(); });
-  </script>
-</body>
-</html>
+<body><div class="app"><aside class="panel">
+<h1>📍 Location Sharing Map</h1><p class="intro">Your location is detected automatically. Share a link with a friend, or paste your friend's coordinates or sharing link below.</p>
+<section class="section"><h2>My current location</h2><div id="my-address" class="address">Requesting your location…</div><div id="my-coordinates" class="coordinates">Coordinates: waiting for GPS</div><button id="locate-button">Refresh my location</button><button id="clear-track-button" class="gray">Clear walking track</button><div id="my-status" class="status">Allow location access when your browser asks. GPS works only on HTTPS or localhost.</div></section>
+<section class="section"><h2>Friend's location</h2><label for="friend-name">Friend's name (optional)</label><input id="friend-name" placeholder="For example, Alex"><label for="friend-data">Paste coordinates or a sharing link</label><textarea id="friend-data" placeholder="Paste a link, or coordinates such as: -33.8688, 151.2093"></textarea><button id="show-friend-button" class="secondary">Show friend's location</button><div id="friend-address" class="address"></div><div id="friend-status" class="status">Paste your friend's link or latitude, longitude, then press the button.</div></section>
+<section class="section"><h2>Share my location</h2><p class="hint">Generate a link containing your current latitude and longitude.</p><button id="share-button">Generate location link</button><button id="copy-button" class="gray">Copy link</button><div id="share-link" class="share-link"></div></section>
+</aside><main id="map" aria-label="Map"></main></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
+const map=L.map('map',{zoomControl:true,scrollWheelZoom:true,dragging:true,doubleClickZoom:true,boxZoom:true,keyboard:true,touchZoom:true}).setView([20,0],2);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
+let myMarker=null,friendMarker=null,watchId=null,trackPoints=[];const trackLine=L.polyline([],{color:'#2563eb',weight:5,opacity:.8}).addTo(map);
+const valid=(lat,lon)=>Number.isFinite(lat)&&Number.isFinite(lon)&&lat>=-90&&lat<=90&&lon>=-180&&lon<=180;
+const esc=v=>String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const status=(id,text)=>document.getElementById(id).textContent=text;
+function personIcon(){return L.divIcon({className:'',html:'<div class="person-icon">🧍</div>',iconSize:[34,42],iconAnchor:[17,41],popupAnchor:[0,-38]})}
+function greenIcon(){return L.icon({iconUrl:'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',shadowUrl:'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',iconSize:[25,41],iconAnchor:[12,41],popupAnchor:[1,-34],shadowSize:[41,41]})}
+function nearPosition(lat,lon){if(!myMarker)return[lat,lon];const m=myMarker.getLatLng();if(map.distance(m,[lat,lon])>30)return[lat,lon];const d=.00035;return[lat+(lat>=m.lat?d:-d),lon+(lon>=m.lng?d:-d)]}
+function marker(kind,lat,lon,popup,move=false){let p=kind==='friend'?nearPosition(lat,lon):[lat,lon];const m=L.marker(p,{icon:kind==='me'?personIcon():greenIcon(),zIndexOffset:kind==='friend'?500:1000}).addTo(map).bindPopup(popup,{autoPan:true,keepInView:true});if(kind==='me'){if(myMarker)map.removeLayer(myMarker);myMarker=m}else{if(friendMarker)map.removeLayer(friendMarker);friendMarker=m}m.openPopup();if(move)map.setView(p,16)}
+function popupHtml(kind,lat,lon,a,name){const title=kind==='me'?'🧍 My location':'🟢 👤 '+esc(name||'Friend');const road=[a.house_number,a.road||a.street].filter(Boolean).join(' ')||'Unavailable';const near=a.neighbourhood||a.suburb||a.quarter||a.city||a.town||'Unavailable';const full=[a.city||a.town||a.village,a.state||a.region,a.postcode,a.country].filter(Boolean).join(', ');return `<div class="popup-title">${title}</div><div><b>Road number and name:</b> ${esc(road)}</div><div><b>Near:</b> ${esc(near)}</div>${full?`<div>${esc(full)}</div>`:''}<div><b>Latitude:</b> ${lat.toFixed(6)}<br><b>Longitude:</b> ${lon.toFixed(6)}</div>`}
+async function geocode(lat,lon,target,kind,name,move){try{const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=en`);if(!r.ok)throw Error();const d=await r.json(),a=d.address||{};const road=[a.house_number,a.road||a.street].filter(Boolean).join(' ')||'Road information unavailable';const near=a.neighbourhood||a.suburb||a.quarter||a.city||a.town||'Nearby road information unavailable';document.getElementById(target).textContent=`${road} | Near: ${near}`;const html=popupHtml(kind,lat,lon,a,name);if(kind==='me'&&myMarker)myMarker.bindPopup(html,{autoPan:true,keepInView:true});if(kind==='friend'&&friendMarker)friendMarker.bindPopup(html,{autoPan:true,keepInView:true}).openPopup()}catch(e){document.getElementById(target).textContent='Address unavailable (coordinates are still shown).'}}
+function update(pos,track){const{latitude:lat,longitude:lon,accuracy}=pos.coords;document.getElementById('my-coordinates').textContent=`Latitude: ${lat.toFixed(6)} | Longitude: ${lon.toFixed(6)} | Accuracy: ±${Math.round(accuracy)} m`;marker('me',lat,lon,'<b>🧍 My location</b><br>Loading road information…',false);geocode(lat,lon,'my-address','me','',false);if(track&&(!trackPoints.length||map.distance(trackPoints.at(-1),[lat,lon])>=3)){trackPoints.push([lat,lon]);trackLine.setLatLngs(trackPoints)}status('my-status','Location updated. Walking track is being recorded while this page is open.')}
+function error(e){status('my-status',`Unable to get your location: ${e.message}. Check permission and use HTTPS.`)}
+function start(){if(!navigator.geolocation)return error({message:'Geolocation is not supported'});status('my-status','Requesting GPS location…');navigator.geolocation.getCurrentPosition(p=>update(p,true),error,{enableHighAccuracy:true,timeout:15000,maximumAge:0});if(watchId!==null)navigator.geolocation.clearWatch(watchId);watchId=navigator.geolocation.watchPosition(p=>update(p,true),error,{enableHighAccuracy:true,maximumAge:5000,timeout:20000})}
+function parse(raw){const t=raw.trim();try{const u=new URL(t),p=u.searchParams,lat=+p.get('sharedLat')||+p.get('lat'),lon=+p.get('sharedLon')||+p.get('lon')||+p.get('lng');if(valid(lat,lon))return{lat,lon}}catch(_){}const n=t.match(/[-+]?\d+(?:\.\d+)?/g)||[];if(n.length>=2&&valid(+n[0],+n[1]))return{lat:+n[0],lon:+n[1]};return null}
+document.getElementById('locate-button').onclick=start;document.getElementById('clear-track-button').onclick=()=>{trackPoints=[];trackLine.setLatLngs([]);status('my-status','Walking track cleared. Tracking will continue.')};
+document.getElementById('show-friend-button').onclick=()=>{const c=parse(document.getElementById('friend-data').value),name=document.getElementById('friend-name').value.trim()||'Friend';if(!c)return status('friend-status','Could not find valid latitude and longitude.');marker('friend',c.lat,c.lon,`<b>🟢 ${esc(name)}</b><br>Loading road information…`,true);status('friend-status',`${name}'s location is shown: ${c.lat.toFixed(6)}, ${c.lon.toFixed(6)}`);geocode(c.lat,c.lon,'friend-address','friend',name,true)};
+document.getElementById('share-button').onclick=()=>{if(!myMarker)return status('my-status','Your location is not ready yet.');const p=myMarker.getLatLng(),u=new URL(location.href);u.search=new URLSearchParams({sharedLat:p.lat.toFixed(6),sharedLon:p.lng.toFixed(6),sharedName:'Friend location'});const o=document.getElementById('share-link');o.textContent=u;o.style.display='block'};document.getElementById('copy-button').onclick=async()=>{const l=document.getElementById('share-link').textContent;if(!l)return alert('Generate a location link first.');try{await navigator.clipboard.writeText(l);alert('Location link copied.')}catch(_){alert('Copy failed. Please copy it manually.')}};
+function shared(){const p=new URLSearchParams(location.search),lat=+p.get('sharedLat'),lon=+p.get('sharedLon');if(!valid(lat,lon))return;const name=p.get('sharedName')||'Friend';document.getElementById('friend-data').value=`${lat.toFixed(6)}, ${lon.toFixed(6)}`;marker('friend',lat,lon,`<b>🟢 ${esc(name)}</b><br>Loading road information…`,true);geocode(lat,lon,'friend-address','friend',name,true);status('friend-status',`Shared location loaded: ${lat.toFixed(6)}, ${lon.toFixed(6)}`)}
+addEventListener('load',()=>{setTimeout(()=>map.invalidateSize(),100);shared();start()});
+</script></body></html>
