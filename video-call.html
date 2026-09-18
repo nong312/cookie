@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>HTML 视频通话简易 Demo</title>
+    <!-- 引入 PeerJS 库 -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        video { width: 40%; background: #000; margin: 10px; }
+    </style>
+</head>
+<body>
+    <h2>我的 ID: <span id="my-id">生成中...</span></h2>
+    <div>
+        <input type="text" id="peer-id-input" placeholder="输入对方的 ID">
+        <button onclick="connectToPeer()">呼叫对方</button>
+    </div>
+
+    <div>
+        <video id="local-video" autoplay playsinline muted></video> <!-- 本地视频 -->
+        <video id="remote-video" autoplay playsinline></video> <!-- 远程视频 -->
+    </div>
+
+    <script>
+        // 1. 初始化 Peer 对象（自动连接 PeerJS 官方信令服务器）
+        const peer = new Peer();
+        let localStream;
+
+        // 获取自己的 ID
+        peer.on('open', id => {
+            document.getElementById('my-id').innerText = id;
+        });
+
+        // 2. 获取本地摄像头和麦克风权限
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+            .then(stream => {
+                localStream = stream;
+                document.getElementById('local-video').srcObject = stream;
+            })
+            .catch(err => console.error('获取音视频权限失败:', err));
+
+        // 3. 监听并接收来电
+        peer.on('call', call => {
+            call.answer(localStream); // 应答并发送自己的视频流
+            call.on('stream', remoteStream => {
+                document.getElementById('remote-video').srcObject = remoteStream;
+            });
+        });
+
+        // 4. 呼叫对方的函数
+        function connectToPeer() {
+            const remotePeerId = document.getElementById('peer-id-input').value;
+            const call = peer.call(remotePeerId, localStream); // 呼叫对方并发送自己的视频流
+            call.on('stream', remoteStream => {
+                document.getElementById('remote-video').srcObject = remoteStream;
+            });
+        }
+    </script>
+</body>
+</html>
