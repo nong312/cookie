@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>HTML 视频通话简易 Demo</title>
+    <!-- 引入 PeerJS 库 -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        video { width: 40%; background: #000; margin: 10px; }
+    </style>
+</head>
+<body>
+    <h2>我的 ID: <span id="my-id">生成中...</span></h2>
+    <div>
+        <input type="text" id="peer-id-input" placeholder="输入对方的 ID">
+        <button onclick="connectToPeer()">呼叫对方</button>
+    </div>
+
+    <div>
+        <video id="local-video" autoplay playsinline muted></video> <!-- 本地视频 -->
+        <video id="remote-video" autoplay playsinline></video> <!-- 远程视频 -->
+    </div>
+
+    <script>
+        // 1. 初始化 Peer 对象（自动连接 PeerJS 官方信令服务器）
+        const peer = new Peer();
+        let localStream;
+
+        // 获取自己的 ID
+        peer.on('open', id => {
+            document.getElementById('my-id').innerText = id;
+        });
+
+       // 2. 强制获取高清麦克风，并开启硬件消音/降噪
+navigator.mediaDevices.getUserMedia({ 
+    video: true, 
+    audio: {
+        echoCancellation: true, // 消除回音
+        noiseSuppression: true, // 消除噪音
+        autoGainControl: true   // 自动增益
+    } 
+})
+.then(stream => {
+    localStream = stream;
+    document.getElementById('local-video').srcObject = stream;
+    
+    // 检查麦克风音轨是否正常开启
+    const audioTracks = stream.getAudioTracks();
+    if (audioTracks.length === 0) {
+        log('<span style="color:red;">警告：没有检测到麦克风音轨！</span>');
+    } else {
+        log('麦克风已成功启用：' + audioTracks[0].label);
+    }
+})
+.catch(err => {
+    log('<span style="color:red;">获取摄像头/麦克风失败: ' + err.message + '</span>');
+});
+
+
+        // 3. 监听并接收来电
+       peer.on('call', call => {
+    log('收到呼叫，正在接通...');
+    call.answer(localStream);
+    call.on('stream', remoteStream => {
+        log('已收到对方视频流！');
+        handleRemoteStream(remoteStream);
+    });
+});
+
+
+        // 4. 呼叫对方的函数
+        function connectToPeer() {
+    const remotePeerId = document.getElementById('peer-id-input').value.trim();
+    if (!remotePeerId) return alert('请输入 ID');
+    
+    log('尝试呼叫: ' + remotePeerId);
+    const call = peer.call(remotePeerId, localStream);
+    
+    call.on('stream', remoteStream => {
+        log('呼叫成功，收到对方视频流');
+        handleRemoteStream(remoteStream);
+    });
+}
+
+
+// 2. 强化远端音视频流绑定逻辑
+function handleRemoteStream(remoteStream) {
+    const remoteVideo = document.getElementById('remote-video');
+    
+    // 确保属性正确
+    remoteVideo.muted = false; // 绝不静音
+    remoteVideo.srcObject = remoteStream;
+    
+    // 检查对方传过来的音轨
+    const remoteAudioTracks = remoteStream.getAudioTracks();
+    if (remoteAudioTracks.length === 0) {
+        log('<span style="color:red;">提示：对方没有发送音频流（对方麦克风可能未开启）</span>');
+    } else {
+        log('已成功收到对方音频流');
+    }
+
+    // 播放视频并解锁音频
+    const playPromise = remoteVideo.play();
+    if (playPromise !== undefined) {
+        playPromise.then(() => {
+            log('音视频播放成功！');
+        }).catch(error => {
+            log('<span style="color:orange;">声音被自动播放限制拦截，请【点击屏幕任意位置】解锁声音！</span>');
+            // 全局点击解封音频限制
+            document.body.addEventListener('click', () => {
+                remoteVideo.play();
+            }, { once: true });
+        });
+    }
+}
+
+
+    </script>
+</body>
+</html>
