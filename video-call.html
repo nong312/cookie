@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC 视频通话与文件传输</title>
+    <!-- 引入 PeerJS 库 -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; height: 100vh; display: flex; flex-direction: column; background: #f0f2f5; overflow: hidden; }
+
+        /* 顶部视频区域 */
+        #video-container {
+            height: 40vh; /* 默认高度 40% */
+            min-height: 150px;
+            max-height: 80vh;
+            background: #1a1a1a;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 10px;
+            position: relative;
+        }
+        .video-box {
+            width: 48%;
+            height: 100%;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        .video-label {
+            position: absolute; bottom: 8px; left: 8px;
+            background: rgba(0,0,0,0.6); color: white;
+            padding: 2px 8px; font-size: 12px; border-radius: 4px;
+        }
+
+        /* 视频与下方功能的拖拽分割线 */
+        #resizer {
+            height: 8px;
+            background: #ccc;
+            cursor: row-resize;
+            border-top: 1px solid #ddd;
+            border-bottom: 1px solid #bbb;
+            transition: background 0.2s;
+        }
+        #resizer:hover, #resizer:active { background: #007bff; }
+
+        /* 下方操作与文本区域 */
+        #main-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            gap: 12px;
+            overflow-y: auto;
+            background: #fff;
+        }
+
+        .card { background: #f8f9fa; border: 1px solid #e9ecef; padding: 12px; border-radius: 8px; }
+        .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+        
+        input[type="text"] { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; flex: 1; min-width: 150px; }
+        button { padding: 6px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        button:hover { background: #0056b3; }
+        button.btn-danger { background: #dc3545; }
+        button.btn-danger:hover { background: #a71d2a; }
+
+        /* 文本框区域 */
+        #text-area-container { flex: 1; display: flex; flex-direction: column; min-height: 150px; }
+        #custom-textarea { flex: 1; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; resize: none; font-size: 14px; }
+
+        /* 日志输出 */
+        #logs { background: #222; color: #00ff00; padding: 8px; font-family: monospace; font-size: 11px; height: 80px; overflow-y: auto; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <!-- 1. 顶部视频区域 (左本地，右远程) -->
+    <div id="video-container">
+        <div class="video-box">
+            <video id="local-video" autoplay playsinline muted></video>
+            <span class="video-label">我</span>
+        </div>
+        <div class="video-box">
+            <video id="remote-video" autoplay playsinline></video>
+            <span class="video-label">对方</span>
+        </div>
+    </div>
+
+    <!-- 2. 可拖拽分隔条 -->
+    <div id="resizer" title="上下拖动调节视频区域大小"></div>
+
+    <!-- 3. 下方控制与文件/文本显示区域 -->
+    <div id="main-container">
+        
+        <!-- 通话控制与连接 -->
+        <div class="card">
+            <div class="row">
+                <b>我的 ID:</b> <span id="my-id" style="color: blue; font-weight: bold;">生成中...</span>
+            </div>
+            <div class="row">
+                <input type="text" id="peer-id-input" placeholder="输入对方的 ID">
+                <button onclick="connectToPeer()">呼叫/连接对方</button>
+                <button id="toggle-video-btn" onclick="toggleVideo()" class="btn-danger">关闭视频</button>
+            </div>
+        </div>
+
+        <!-- 文件传输卡片 -->
+        <div class="card">
+            <div class="row">
+                <input type="file" id="file-input">
+                <button onclick="sendFile()">发送文件</button>
+            </div>
+            <!-- 接收文件操作区 -->
+            <div id="file-receive-area" style="display:none; margin-top:8px;" class="row">
+                <span id="file-info" style="font-size:13px; color:#333;"></span>
+                <button id="download-btn">下载文件</button>
+                <button id="show-text-btn" style="display:none; background:#28a745;">在下方文本框显示</button>
+            </div>
+        </div>
+
+        <!-- 可编辑文本框 -->
+        <div id="text-area-container">
+            <label style="font-weight: bold; margin-bottom: 5px;">文本内容区（可编辑 / 显示收到的文本内容）：</label>
+            <textarea id="custom-textarea" placeholder="在此处打字，或点击上方“在下方文本框显示”填充收到的文本文件内容..."></textarea>
+        </div>
+
+        <!-- 运行日志 -->
+        <div id="logs"><b>运行日志：</b><br></div>
+    </div>
+
+    <script>
+        // 日志输出助手
+        function log(msg) {
+            const logBox = document.getElementById('logs');
+            logBox.innerHTML += `> ${msg}<br>`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        // --- 1. PeerJS 初始化 ---
+        const peer = new Peer({
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' }
+                ]
+            }
+        });
+
+        let localStream = null;
+        let dataConnection = null; // 用于传送文件的数据通道
+        let currentReceivedFile = null; // 临时保存收到的文件数据
+        let isVideoEnabled = true;
+
+        peer.on('open', id => {
+            document.getElementById('my-id').innerText = id;
+            log('已成功连接服务器，我的 ID: ' + id);
+        });
+
+        peer.on('error', err => {
+            log('<span style="color:red;">Peer 错误: ' + err.type + '</span>');
+        });
+
+        // 获取音视频流
+        navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: { echoCancellation: true, noiseSuppression: true }
+        }).then(stream => {
+            localStream = stream;
+            document.getElementById('local-video').srcObject = stream;
+            log('本地摄像头与麦克风准备就绪');
+        }).catch(err => {
+            log('<span style="color:red;">无法获取音视频权限: ' + err.message + '</span>');
+        });
+
+        // --- 2. 视频呼叫与接听 ---
+        peer.on('call', call => {
+            log('收到来自对方的视频呼叫...');
+            call.answer(localStream);
+            call.on('stream', remoteStream => {
+                handleRemoteStream(remoteStream);
+            });
+        });
+
+        function connectToPeer() {
+            const remotePeerId = document.getElementById('peer-id-input').value.trim();
+            if (!remotePeerId) return alert('请输入对方的 ID！');
+
+            // 1. 发起音视频呼叫
+            log('正在呼叫对方视频...');
+            const call = peer.call(remotePeerId, localStream);
+            call.on('stream', remoteStream => {
+                handleRemoteStream(remoteStream);
+            });
+
+            // 2. 建立文件传输通道
+            initDataConnection(peer.connect(remotePeerId));
+        }
+
+        // 监听来自对方的数据通道连接
+        peer.on('connection', conn => {
+            initDataConnection(conn);
+        });
+
+        function handleRemoteStream(remoteStream) {
+            const remoteVideo = document.getElementById('remote-video');
+            remoteVideo.srcObject = remoteStream;
+            remoteVideo.play().catch(() => {
+                document.body.addEventListener('click', () => remoteVideo.play(), { once: true });
+            });
+            log('已成功接通对方音视频');
+        }
+
+        // --- 3. 开/关视频功能 ---
+        function toggleVideo() {
+            if (!localStream) return;
+            const videoTrack = localStream.getVideoTracks()[0];
+            if (videoTrack) {
+                isVideoEnabled = !isVideoEnabled;
+                videoTrack.enabled = isVideoEnabled;
+                const btn = document.getElementById('toggle-video-btn');
+                btn.innerText = isVideoEnabled ? '关闭视频' : '开启视频';
+                btn.className = isVideoEnabled ? 'btn-danger' : '';
+                log(isVideoEnabled ? '已开启本地视频' : '已关闭本地视频（仅保留声音）');
+            }
+        }
+
+        // --- 4. 数据通道与文件传输逻辑 ---
+        function initDataConnection(conn) {
+            dataConnection = conn;
+            dataConnection.on('open', () => {
+                log('<span style="color:#00ff00;">数据通道建立成功，现在可以发送文件了！</span>');
+            });
+
+            dataConnection.on('data', data => {
+                // 处理接收到的文件数据
+                if (data && data.fileName) {
+                    log(`收到文件: <b>${data.fileName}</b> (${Math.round(data.fileSize/1024)} KB)`);
+                    currentReceivedFile = data;
+
+                    // 显示文件处理 UI
+                    const receiveArea = document.getElementById('file-receive-area');
+                    const fileInfo = document.getElementById('file-info');
+                    const showTextBtn = document.getElementById('show-text-btn');
+                    
+                    receiveArea.style.display = 'flex';
+                    fileInfo.innerText = `收到文件: ${data.fileName}`;
+
+                    // 判断是否为文本文件
+                    const isText = data.fileType.startsWith('text/') || data.fileName.endsWith('.txt') || data.fileName.endsWith('.json') || data.fileName.endsWith('.md');
+                    showTextBtn.style.display = isText ? 'inline-block' : 'none';
+
+                    // 绑定下载按钮
+                    document.getElementById('download-btn').onclick = () => {
+                        const blob = new Blob([data.fileData], { type: data.fileType });
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(blob);
+                        link.download = data.fileName;
+                        link.click();
+                        log('文件已开始下载到默认下载文件夹');
+                    };
+
+                    // 绑定显示在文本框按钮
+                    showTextBtn.onclick = () => {
+                        const decoder = new TextDecoder('utf-8');
+                        const text = decoder.decode(data.fileData);
+                        document.getElementById('custom-textarea').value = text;
+                        log('文本内容已填充至下方文本框');
+                    };
+                }
+            });
+        }
+
+        // 发送文件
+        function sendFile() {
+            const fileInput = document.getElementById('file-input');
+            const file = fileInput.files[0];
+            if (!file) return alert('请先选择要发送的文件！');
+            if (!dataConnection || !dataConnection.open) return alert('数据传输通道未建立，请先建立连接！');
+
+            log(`正在发送文件: ${file.name}...`);
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const fileData = {
+                    fileName: file.name,
+                    fileSize: file.size,
+                    fileType: file.type,
+                    fileData: e.target.result
+                };
+                dataConnection.send(fileData);
+                log('文件发送完成！');
+                fileInput.value = ''; // 清空选择
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // --- 5. 拖拽分割线改变视频区域大小 ---
+        const resizer = document.getElementById('resizer');
+        const videoContainer = document.getElementById('video-container');
+        let isResizing = false;
+
+        resizer.addEventListener('mousedown', startResize);
+        resizer.addEventListener('touchstart', startResize);
+
+        function startResize(e) {
+            isResizing = true;
+            document.addEventListener('mousemove', resizing);
+            document.addEventListener('touchmove', resizing);
+            document.addEventListener('mouseup', stopResize);
+            document.addEventListener('touchend', stopResize);
+        }
+
+        function resizing(e) {
+            if (!isResizing) return;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const newHeight = clientY;
+            if (newHeight > 100 && newHeight < window.innerHeight - 150) {
+                videoContainer.style.height = `${newHeight}px`;
+            }
+        }
+
+        function stopResize() {
+            isResizing = false;
+            document.removeEventListener('mousemove', resizing);
+            document.removeEventListener('touchmove', resizing);
+        }
+    </script>
+</body>
+</html>
