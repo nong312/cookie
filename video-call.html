@@ -40,21 +40,46 @@
             .catch(err => console.error('获取音视频权限失败:', err));
 
         // 3. 监听并接收来电
-        peer.on('call', call => {
-            call.answer(localStream); // 应答并发送自己的视频流
-            call.on('stream', remoteStream => {
-                document.getElementById('remote-video').srcObject = remoteStream;
-            });
-        });
+       peer.on('call', call => {
+    log('收到呼叫，正在接通...');
+    call.answer(localStream);
+    call.on('stream', remoteStream => {
+        log('已收到对方视频流！');
+        handleRemoteStream(remoteStream);
+    });
+});
+
 
         // 4. 呼叫对方的函数
         function connectToPeer() {
-            const remotePeerId = document.getElementById('peer-id-input').value;
-            const call = peer.call(remotePeerId, localStream); // 呼叫对方并发送自己的视频流
-            call.on('stream', remoteStream => {
-                document.getElementById('remote-video').srcObject = remoteStream;
-            });
-        }
+    const remotePeerId = document.getElementById('peer-id-input').value.trim();
+    if (!remotePeerId) return alert('请输入 ID');
+    
+    log('尝试呼叫: ' + remotePeerId);
+    const call = peer.call(remotePeerId, localStream);
+    
+    call.on('stream', remoteStream => {
+        log('呼叫成功，收到对方视频流');
+        handleRemoteStream(remoteStream);
+    });
+}
+
+
+// 绑定远程视频流的通用函数
+function handleRemoteStream(remoteStream) {
+    const remoteVideo = document.getElementById('remote-video');
+    remoteVideo.srcObject = remoteStream;
+    
+    // 明确调用 play() 并捕获可能的自动播放拦截
+    remoteVideo.play().then(() => {
+        log('视频和音频已成功播放');
+    }).catch(err => {
+        log('<span style="color:orange;">浏览器阻止了声音自动播放，请直接点击下方远程视频画面！</span>');
+        // 给远程视频加一个点击事件，用户点一下就能出声音
+        remoteVideo.onclick = () => remoteVideo.play();
+    });
+}
+
     </script>
 </body>
 </html>
