@@ -83,35 +83,19 @@ navigator.mediaDevices.getUserMedia({
 }
 
 
-// 2. 强化远端音视频流绑定逻辑
+// 绑定远程视频流的通用函数
 function handleRemoteStream(remoteStream) {
     const remoteVideo = document.getElementById('remote-video');
-    
-    // 确保属性正确
-    remoteVideo.muted = false; // 绝不静音
     remoteVideo.srcObject = remoteStream;
     
-    // 检查对方传过来的音轨
-    const remoteAudioTracks = remoteStream.getAudioTracks();
-    if (remoteAudioTracks.length === 0) {
-        log('<span style="color:red;">提示：对方没有发送音频流（对方麦克风可能未开启）</span>');
-    } else {
-        log('已成功收到对方音频流');
-    }
-
-    // 播放视频并解锁音频
-    const playPromise = remoteVideo.play();
-    if (playPromise !== undefined) {
-        playPromise.then(() => {
-            log('音视频播放成功！');
-        }).catch(error => {
-            log('<span style="color:orange;">声音被自动播放限制拦截，请【点击屏幕任意位置】解锁声音！</span>');
-            // 全局点击解封音频限制
-            document.body.addEventListener('click', () => {
-                remoteVideo.play();
-            }, { once: true });
-        });
-    }
+    // 明确调用 play() 并捕获可能的自动播放拦截
+    remoteVideo.play().then(() => {
+        log('视频和音频已成功播放');
+    }).catch(err => {
+        log('<span style="color:orange;">浏览器阻止了声音自动播放，请直接点击下方远程视频画面！</span>');
+        // 给远程视频加一个点击事件，用户点一下就能出声音
+        remoteVideo.onclick = () => remoteVideo.play();
+    });
 }
 
 
