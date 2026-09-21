@@ -557,12 +557,16 @@
 
     <!-- Quick Audio File Picker -->
     <div class="setting-group" id="audioPickerBox" style="display:none;">
-      <label>🎵 快捷选择音频文件或测试音源:</label>
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button class="btn" style="background:#475569; color:#fff; font-size:0.9rem; padding:6px 10px;" onclick="setSampleAudio('sample-3s.mp3')">测试音频 1 (.mp3)</button>
-        <button class="btn" style="background:#475569; color:#fff; font-size:0.9rem; padding:6px 10px;" onclick="setSampleAudio('alarm.wav')">测试音频 2 (.wav)</button>
-        <button class="btn btn-purple" style="font-size:0.9rem; padding:6px 10px;" onclick="document.getElementById('audioLocalFile').click()">📂 选用本地手机/电脑音频文件</button>
+      <label>🎵 选择音频来源:</label>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+        <button class="btn btn-purple" style="font-size:0.95rem; padding:8px 12px; width:100%;" onclick="document.getElementById('audioLocalFile').click()">📂 从手机/电脑选取本地音频文件 (.mp3/.wav/.m4a)</button>
         <input type="file" id="audioLocalFile" accept="audio/*" style="display:none;" onchange="handleLocalAudioChoose(event)">
+      </div>
+      <div id="audioFileInfo" style="font-size:0.9rem; color:var(--accent-green); margin-bottom:8px; display:none;"></div>
+      
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-green" id="btnTestPlay" style="font-size:0.9rem; padding:6px 10px; display:none;" onclick="testCurrentAudio()">▶️ 立即试听此本地音频</button>
+        <button class="btn" style="background:#475569; color:#fff; font-size:0.9rem; padding:6px 10px;" onclick="setSampleAudio('sample-3s.mp3')">在线测试音源 1</button>
       </div>
     </div>
 
@@ -578,7 +582,6 @@
   let wakeLock = null;
   let allNativeVoices = [];
   let currentAudioInstance = null;
-  let activeAudioContext = null;
   let currentEditingRow = null;
   let currentEditingCol = null;
   
@@ -587,6 +590,9 @@
   let timerSingleSeconds = 0;
   let timerStartTimestamp = 0;
   let timerCompletedRounds = 0;
+
+  // Local File Blob Storage Keyed by File Name
+  const localAudioFiles = {}; 
 
   // Table Data Array
   let tableData = [
@@ -611,14 +617,12 @@
     renderTable();
     checkRecurringOnLoad();
 
-    // Re-request Screen WakeLock when app becomes visible
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState === 'visible') {
         await requestWakeLock();
       }
     });
 
-    // Schedule Checker Interval (Check every 5 seconds)
     setInterval(checkScheduledEvents, 5000);
   }
 
@@ -648,11 +652,9 @@
       zhSel.innerHTML = '';
       enSel.innerHTML = '';
 
-      // Populate Edge
       EDGE_VOICES.filter(v => v.lang.startsWith('zh')).forEach(v => zhSel.appendChild(new Option(v.name, `edge|${v.id}`)));
       EDGE_VOICES.filter(v => v.lang.startsWith('en')).forEach(v => enSel.appendChild(new Option(v.name, `edge|${v.id}`)));
 
-      // Populate System
       allNativeVoices.filter(v => v.lang.toLowerCase().includes('zh') || v.name.toLowerCase().includes('chinese'))
         .forEach(v => zhSel.appendChild(new Option(`[系统原生] ${v.name}`, `native|${v.name}`)));
         
@@ -679,7 +681,6 @@
 
       document.getElementById('clockDisplay').innerText = `${h} : ${m} : ${s}`;
 
-      // Hourly Chime
       if (m === '00' && s === '00') {
         announceHourlyChime(now.getHours());
       }
@@ -717,16 +718,14 @@
     }
   }
 
-  // 6. Weather Widget (Open-Meteo API)
+  // 6. Weather Widget
   async function fetchWeather() {
     const locInput = document.getElementById('weatherLoc').value.trim();
     const display = document.getElementById('weatherDisplay');
-    
-    let lat = -27.47, lon = 153.02; // Default Brisbane
+    let lat = -27.47, lon = 153.02;
     
     try {
       if (locInput) {
-        // Geocoding
         const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(locInput)}&count=1`);
         const geoData = await geoRes.json();
         if (geoData.results && geoData.results.length > 0) {
@@ -735,9 +734,7 @@
         }
       } else if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(pos => {
-          lat = pos.coords.latitude;
-          lon = pos.coords.longitude;
-          queryWeatherData(lat, lon);
+          queryWeatherData(pos.coords.latitude, pos.coords.longitude);
         }, () => queryWeatherData(lat, lon));
         return;
       }
@@ -770,7 +767,7 @@
     return { icon: "🌩️", text: "Storm 雷雨" };
   }
 
-  // 7. Quick Timer & Schedule Generation
+  // 7. Quick Timer
   function parseDurationToSeconds(str) {
     str = str.toLowerCase().trim();
     let total = 0;
@@ -805,10 +802,8 @@
       return;
     }
 
-    // Announce start
     speakBilingualText(`Starts ${formatTimeEnglishText(timerSingleSeconds)} timer, repeat ${repeats} times.`);
 
-    // Append repeat rows into Table
     const now = new Date();
     for (let i = 1; i <= repeats; i++) {
       let futureMs = now.getTime() + (i * timerSingleSeconds * 1000);
@@ -827,7 +822,6 @@
     sortTable();
     renderTable();
 
-    // Live Progress
     timerStartTimestamp = Date.now();
     timerCompletedRounds = 0;
     activeTimerInterval = setInterval(updateTimerProgress, 200);
@@ -855,12 +849,11 @@
     document.getElementById('timerStatusText').innerText = "已停止/等待启动定时";
   }
 
-  // 8. Bilingual Speech Chunking Engine
+  // 8. Bilingual Speech Chunking
   function speakBilingualText(text, onComplete) {
     if (!text) return;
     stopCurrentSpeech();
 
-    // Split text into Chinese and English sub-chunks
     const chunks = [];
     const regex = /([\u4e00-\u9fa5]+|[^\u4e00-\u9fa5]+)/g;
     let match;
@@ -943,30 +936,35 @@
       });
   }
 
-  // Audio File Playback Handler
+  // ===== 核心修复：支持本地文件 Blob 流与网络地址播放 =====
   function playAudioFile(fileName, callback) {
     stopCurrentSpeech();
     
-    // Check if sample or remote URL
-    let url = fileName;
-    if (fileName === 'sample-3s.mp3') {
-      url = 'https://samplelib.com/lib/preview/mp3/sample-3s.mp3';
-    } else if (fileName === 'alarm.wav') {
-      url = 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg';
+    let playUrl = "";
+
+    // 优先匹配本地内存中的本地文件对象 (Blob)
+    if (localAudioFiles[fileName]) {
+      playUrl = localAudioFiles[fileName];
+    } else if (fileName === 'sample-3s.mp3') {
+      playUrl = 'https://samplelib.com/lib/preview/mp3/sample-3s.mp3';
+    } else {
+      playUrl = fileName; // 直接作为 URL 尝试播放
     }
 
     try {
-      currentAudioInstance = new Audio();
-      currentAudioInstance.crossOrigin = "anonymous";
-      currentAudioInstance.src = url;
+      currentAudioInstance = new Audio(playUrl);
+      if (!playUrl.startsWith('blob:')) {
+        currentAudioInstance.crossOrigin = "anonymous";
+      }
+
       currentAudioInstance.onended = callback;
-      currentAudioInstance.onerror = () => {
-        alert("⚠️ 音频打开失败: 浏览器无法加载该音频源。");
+      currentAudioInstance.onerror = (e) => {
+        alert(`⚠️ 音频播放失败: 无法加载【${fileName}】\n提示：如果是本地音频，请点击单元格重新在弹窗中选择选取文件。`);
         if (callback) callback();
       };
+
       currentAudioInstance.play().catch(e => {
-        console.warn("Audio Play Failure:", e);
-        alert("⚠️ 播放被浏览器阻断，请先点击页面任意位置授权音频服务。");
+        alert("⚠️ 播放被手机/浏览器阻断：请先点击页面任意按钮激活语音授权。");
         if (callback) callback();
       });
     } catch(err) {
@@ -982,7 +980,7 @@
     }
   }
 
-  // 9. Table Operations & Cell Editing Popups
+  // 9. Table Operations
   function renderTable() {
     const tbody = document.getElementById('tableBody');
     tbody.innerHTML = '';
@@ -1010,7 +1008,22 @@
     document.getElementById('editModalHeader').innerText = colType === 'time' ? "📝 编辑触发时间 / 循环规则" : "💬 编辑提醒内容 / 音频文件名";
     document.getElementById('cellModalTextarea').value = colType === 'time' ? item.time : item.content;
 
-    document.getElementById('audioPickerBox').style.display = colType === 'content' ? 'block' : 'none';
+    const audioPicker = document.getElementById('audioPickerBox');
+    if (colType === 'content') {
+      audioPicker.style.display = 'block';
+      const fileInfo = document.getElementById('audioFileInfo');
+      const testBtn = document.getElementById('btnTestPlay');
+      if (localAudioFiles[item.content]) {
+        fileInfo.style.display = 'block';
+        fileInfo.innerText = `✅ 已载入本地内存音频: ${item.content}`;
+        testBtn.style.display = 'inline-flex';
+      } else {
+        fileInfo.style.display = 'none';
+        testBtn.style.display = 'none';
+      }
+    } else {
+      audioPicker.style.display = 'none';
+    }
 
     openModal('cellEditModal');
   }
@@ -1029,13 +1042,32 @@
 
   function setSampleAudio(filename) {
     document.getElementById('cellModalTextarea').value = filename;
+    document.getElementById('audioFileInfo').style.display = 'none';
+    document.getElementById('btnTestPlay').style.display = 'none';
   }
 
+  // 处理选中本地音频文件
   function handleLocalAudioChoose(e) {
     const file = e.target.files[0];
     if (file) {
+      // 1. 创建内存地址 (Object URL) 供浏览器直接读取二进制流
+      const blobUrl = URL.createObjectURL(file);
+      localAudioFiles[file.name] = blobUrl;
+
+      // 2. 将文件名填入框内
       document.getElementById('cellModalTextarea').value = file.name;
+
+      // 3. 提示成功并显示试听按钮
+      const info = document.getElementById('audioFileInfo');
+      info.style.display = 'block';
+      info.innerText = `✅ 本地音频【${file.name}】加载成功！点击下方试听确认。`;
+      document.getElementById('btnTestPlay').style.display = 'inline-flex';
     }
+  }
+
+  function testCurrentAudio() {
+    const val = document.getElementById('cellModalTextarea').value.trim();
+    if (val) playAudioFile(val);
   }
 
   function toggleRowCheck(idx, checked) {
@@ -1052,7 +1084,7 @@
   function sortTable() {
     tableData.sort((a, b) => {
       if (!a.time && !b.time) return 0;
-      if (!a.time) return -1; // Empty times top
+      if (!a.time) return -1;
       if (!b.time) return 1;
 
       const pA = parseScheduleTime(a.time);
@@ -1065,7 +1097,6 @@
 
   function parseScheduleTime(str) {
     if (!str) return 0;
-    // Extract HH:mm or dd/mm/yyyy
     const timeMatch = str.match(/(\d{1,2}):(\d{2})/);
     const dateMatch = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
 
@@ -1081,7 +1112,7 @@
     return d.getTime();
   }
 
-  // 11. Recurring Date Updater on Load
+  // 11. Recurring Date Updater
   function checkRecurringOnLoad() {
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -1113,11 +1144,10 @@
       if (row.checked || !row.time) return;
 
       if (row.time.includes(currHHMM) || row.time.includes(currDateStr)) {
-        // Trigger Event
-        row.checked = true; // mark done
+        row.checked = true;
         renderTable();
 
-        if (row.content.match(/\.(mp3|wav|ogg)$/i)) {
+        if (row.content.match(/\.(mp3|wav|ogg|m4a|aac)$/i)) {
           playAudioFile(row.content);
         } else {
           speakBilingualText(row.content);
@@ -1152,7 +1182,6 @@
       const count = parseInt(document.getElementById('importLineCount').value) || 5;
       const interval = parseInt(document.getElementById('importIntervalSec').value) || 30;
 
-      // Pick Random Lines
       const shuffled = lines.sort(() => 0.5 - Math.random());
       const selected = shuffled.slice(0, Math.min(count, shuffled.length));
 
