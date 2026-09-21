@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Voice & Schedule Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome for UI Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Custom scrollbar for table and panels */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.4); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(156, 163, 175, 0.6); }
+        .row-done { text-decoration: line-through; opacity: 0.6; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen transition-colors duration-200 font-sans flex flex-col">
+
+<header class="bg-gray-800/80 backdrop-blur border-b border-gray-700/60 sticky top-0 z-30 px-4 py-2 text-sm shadow-md">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+        
+        <!-- Left: Weather Widget & City Search -->
+        <div class="flex items-center gap-2 bg-gray-700/50 px-3 py-1.5 rounded-lg border border-gray-600/40">
+            <span id="weather-icon" class="text-xl">⏳</span>
+            <div class="flex flex-col text-xs leading-tight">
+                <div class="flex items-center gap-1">
+                    <span id="weather-temp" class="font-bold text-sky-400">--°C</span>
+                    <span id="weather-desc" class="text-gray-300">Detecting location...</span>
+                </div>
+                <div class="flex items-center gap-1 mt-0.5">
+                    <input type="text" id="weather-search-input" placeholder="Search city..." 
+                        class="bg-gray-800 text-gray-200 text-[10px] px-1.5 py-0.5 rounded border border-gray-600 focus:outline-none focus:border-sky-400 w-24">
+                    <button id="weather-search-btn" class="text-[10px] text-sky-400 hover:text-sky-300 px-1 py-0.5 bg-gray-800 rounded border border-gray-600">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </button>
+                    <button id="weather-locate-btn" title="Auto-detect Location" class="text-[10px] text-sky-400 hover:text-sky-300 px-1 py-0.5 bg-gray-800 rounded border border-gray-600">
+                        <i class="fa-solid fa-location-crosshairs"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center: Clock & Hourly Chime Indicator -->
+        <div class="flex items-center gap-3 bg-gray-700/50 px-4 py-1.5 rounded-lg border border-gray-600/40">
+            <div class="text-center">
+                <div id="clock-display" class="font-mono text-xl font-bold tracking-wider text-sky-400">00:00:00</div>
+                <div id="date-display" class="text-[10px] text-gray-400">YYYY-MM-DD</div>
+            </div>
+            <button id="chime-toggle-btn" class="text-xs px-2 py-1 rounded bg-gray-800 text-gray-300 border border-gray-600 hover:bg-gray-700 flex items-center gap-1" title="Toggle Hourly Chime Speech">
+                <i class="fa-solid fa-bell text-yellow-400"></i>
+                <span id="chime-status-text">Chime: ON</span>
+            </button>
+        </div>
+
+        <!-- Right: Battery & System Quick Controls -->
+        <div class="flex items-center gap-3">
+            <div id="battery-widget" class="flex items-center gap-1.5 bg-gray-700/50 px-2.5 py-1 rounded-lg border border-gray-600/40 text-xs">
+                <i id="battery-icon" class="fa-solid fa-battery-full text-green-400 text-sm"></i>
+                <span id="battery-text" class="font-mono">--%</span>
+            </div>
+
+            <!-- Wake Lock Status Indicator -->
+            <div id="wakelock-badge" class="flex items-center gap-1 text-[11px] bg-emerald-950 text-emerald-300 border border-emerald-700/50 px-2 py-1 rounded-lg" title="Screen Wake Lock Active">
+                <i class="fa-solid fa-sun text-amber-400"></i>
+                <span class="hidden sm:inline">Wake Lock</span>
+            </div>
+
+            <button id="settings-toggle-btn" class="p-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium transition flex items-center gap-1.5 shadow">
+                <i class="fa-solid fa-gear"></i>
+                <span class="text-xs hidden sm:inline">Settings</span>
+            </button>
+        </div>
+    </div>
+</header>
+
+<main class="max-w-7xl mx-auto w-full flex-1 p-4 flex flex-col gap-4">
+
+    <!-- Action Toolbar: Timers, Controls & Immediate STOP -->
+    <section class="bg-gray-800/90 border border-gray-700 rounded-xl p-4 shadow-lg flex flex-wrap items-center justify-between gap-4">
+        
+        <!-- Quick Timer Entry -->
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs font-semibold text-gray-300 uppercase tracking-wider"><i class="fa-solid fa-stopwatch text-sky-400 mr-1"></i> Quick Timer:</span>
+            <input type="text" id="quick-timer-input" placeholder="e.g. 10s, 2m, 1h20m" class="bg-gray-900 text-gray-100 border border-gray-600 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-sky-500 w-36">
+            <input type="text" id="quick-timer-task" placeholder="Task description..." class="bg-gray-900 text-gray-100 border border-gray-600 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-sky-500 w-44">
+            <button id="add-quick-timer-btn" class="bg-sky-600 hover:bg-sky-500 text-white text-xs px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1">
+                <i class="fa-solid fa-plus"></i> Add
+            </button>
+        </div>
+
+        <!-- Core Playback & Schedule Controls -->
+        <div class="flex items-center gap-2">
+            <!-- Dedicated Emergency STOP Button -->
+            <button id="stop-playback-btn" class="bg-red-600 hover:bg-red-500 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-md transition flex items-center gap-2 border border-red-400">
+                <i class="fa-solid fa-hand-paper text-sm"></i>
+                <span>STOP PLAYBACK</span>
+            </button>
+
+            <button id="add-row-btn" class="bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs px-3 py-2 rounded-lg font-medium border border-gray-600 transition flex items-center gap-1">
+                <i class="fa-solid fa-square-plus text-sky-400"></i> New Row
+            </button>
+            <button id="sort-schedule-btn" class="bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs px-3 py-2 rounded-lg font-medium border border-gray-600 transition flex items-center gap-1">
+                <i class="fa-solid fa-arrow-down-wide-short text-emerald-400"></i> Auto-Sort
+            </button>
+        </div>
+    </section>
+
+    <!-- Excel-like Dynamic Table Section -->
+    <section class="bg-gray-800/90 border border-gray-700 rounded-xl p-4 shadow-lg flex-1 flex flex-col min-h-[400px]">
+        <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-table-list text-sky-400"></i>
+                <h2 class="text-base font-bold text-gray-100">Schedule & Audio Sequence Table</h2>
+            </div>
+            <div class="text-xs text-gray-400 flex gap-2">
+                <span>Total Items: <strong id="total-rows-count" class="text-sky-400">0</strong></span>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto rounded-lg border border-gray-700 flex-1">
+            <table class="w-full text-left text-xs border-collapse" id="schedule-table">
+                <thead class="bg-gray-900/90 text-gray-300 font-semibold border-b border-gray-700 sticky top-0 z-10">
+                    <tr>
+                        <th class="p-3 w-12 text-center">Done</th>
+                        <th class="p-3 w-64">Time / Trigger Rule</th>
+                        <th class="p-3">Content (Text / Audio File URL)</th>
+                        <th class="p-3 w-28 text-center">Audio Test</th>
+                        <th class="p-3 w-16 text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="schedule-tbody" class="divide-y divide-gray-700/60 text-gray-200">
+                    <!-- Dynamic Rows Render Here -->
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<!-- Settings Drawer Modal -->
+<div id="settings-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end hidden opacity-0 transition-opacity duration-200">
+    <div id="settings-panel" class="bg-gray-800 w-full max-w-md h-full shadow-2xl p-6 overflow-y-auto flex flex-col gap-6 transform translate-x-full transition-transform duration-300 border-l border-gray-700">
+        
+        <div class="flex items-center justify-between border-b border-gray-700 pb-4">
+            <h3 class="text-lg font-bold text-gray-100 flex items-center gap-2">
+                <i class="fa-solid fa-sliders text-sky-400"></i> System & Voice Settings
+            </h3>
+            <button id="close-settings-btn" class="text-gray-400 hover:text-white text-xl">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <!-- Theme Toggle -->
+        <div class="bg-gray-900/60 p-4 rounded-xl border border-gray-700/60 flex items-center justify-between">
+            <span class="text-sm font-medium text-gray-200">Appearance Mode</span>
+            <button id="theme-toggle-btn" class="px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-600 text-xs font-semibold text-gray-200 flex items-center gap-2">
+                <i class="fa-solid fa-moon text-indigo-400" id="theme-icon"></i>
+                <span id="theme-text">Dark Mode</span>
+            </button>
+        </div>
+
+        <!-- Bilingual Voice Engine Configurations -->
+        <div class="bg-gray-900/60 p-4 rounded-xl border border-gray-700/60 flex flex-col gap-4">
+            <h4 class="text-xs font-bold uppercase text-sky-400 tracking-wider flex items-center gap-1.5">
+                <i class="fa-solid fa-language"></i> Bilingual Speech Engine (Edge/Native)
+            </h4>
+
+            <!-- Chinese Voice & Rate -->
+            <div class="flex flex-col gap-1.5">
+                <label class="text-xs text-gray-300 font-medium">Chinese Voice (Native / Edge fallback):</label>
+                <select id="voice-zh-select" class="bg-gray-800 border border-gray-600 text-xs rounded-lg p-2 text-gray-200 focus:outline-none focus:border-sky-500">
+                    <option value="">Loading voices...</option>
+                </select>
+                <div class="flex items-center justify-between gap-2 mt-1">
+                    <span class="text-[11px] text-gray-400">Chinese Speech Rate:</span>
+                    <input type="range" id="rate-zh-range" min="0.5" max="2" step="0.1" value="1.0" class="w-32 accent-sky-500">
+                    <span id="rate-zh-val" class="text-xs font-mono text-sky-400 w-8 text-right">1.0x</span>
+                </div>
+            </div>
+
+            <!-- English Voice & Rate -->
+            <div class="flex flex-col gap-1.5">
+                <label class="text-xs text-gray-300 font-medium">English Voice (Native / Edge fallback):</label>
+                <select id="voice-en-select" class="bg-gray-800 border border-gray-600 text-xs rounded-lg p-2 text-gray-200 focus:outline-none focus:border-sky-500">
+                    <option value="">Loading voices...</option>
+                </select>
+                <div class="flex items-center justify-between gap-2 mt-1">
+                    <span class="text-[11px] text-gray-400">English Speech Rate:</span>
+                    <input type="range" id="rate-en-range" min="0.5" max="2" step="0.1" value="1.0" class="w-32 accent-sky-500">
+                    <span id="rate-en-val" class="text-xs font-mono text-sky-400 w-8 text-right">1.0x</span>
+                </div>
+            </div>
+
+            <button id="test-bilingual-speech-btn" class="mt-2 bg-sky-700 hover:bg-sky-600 text-white text-xs py-2 rounded-lg font-medium border border-sky-500 transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-volume-high"></i> Test Mixed Speech Engine
+            </button>
+        </div>
+
+        <!-- File Import / Export & Generation Settings -->
+        <div class="bg-gray-900/60 p-4 rounded-xl border border-gray-700/60 flex flex-col gap-3">
+            <h4 class="text-xs font-bold uppercase text-emerald-400 tracking-wider flex items-center gap-1.5">
+                <i class="fa-solid fa-file-import"></i> TXT Import / Sequence Generator
+            </h4>
+
+            <div class="flex flex-col gap-2">
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-gray-300">Lines per generated rule:</span>
+                    <input type="number" id="import-lines-per-rule" min="1" value="1" class="w-16 bg-gray-800 border border-gray-600 text-center rounded text-xs p-1">
+                </div>
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-gray-300">Repeat rule count:</span>
+                    <input type="number" id="import-repeat-count" min="1" value="10" class="w-16 bg-gray-800 border border-gray-600 text-center rounded text-xs p-1">
+                </div>
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-gray-300">Interval between items (seconds):</span>
+                    <input type="number" id="import-interval-sec" min="1" value="30" class="w-16 bg-gray-800 border border-gray-600 text-center rounded text-xs p-1">
+                </div>
+                <div class="flex items-center justify-between text-xs mt-1">
+                    <span class="text-gray-300">Random Line Selection:</span>
+                    <input type="checkbox" id="import-random-check" class="accent-sky-500 w-4 h-4">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 mt-2">
+                <label class="bg-emerald-700 hover:bg-emerald-600 text-white text-xs py-2 rounded-lg font-medium text-center cursor-pointer border border-emerald-500 transition flex items-center justify-center gap-1">
+                    <i class="fa-solid fa-upload"></i> Import TXT
+                    <input type="file" id="import-txt-file" accept=".txt" class="hidden">
+                </label>
+                <button id="export-txt-btn" class="bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs py-2 rounded-lg font-medium border border-gray-600 transition flex items-center justify-center gap-1">
+                    <i class="fa-solid fa-download"></i> Save TXT
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Notification Toast Container -->
+<div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+<script>
+/**
+ * Smart Voice & Schedule Dashboard - Main Controller Script
+ */
+
+// Application State
+const state = {
+    schedule: [
+        { id: '1', done: false, trigger: '10s', content: 'Welcome to Smart Voice Schedule! 欢迎使用智能语音日程 dashboard.' },
+        { id: '2', done: false, trigger: '2m', content: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' }
+    ],
+    voices: [],
+    selectedZhVoice: null,
+    selectedEnVoice: null,
+    zhRate: 1.0,
+    enRate: 1.0,
+    hourlyChimeEnabled: true,
+    lastChimeHour: -1,
+    audioInstance: null,
+    speechQueue: [],
+    isSpeakingQueue: false,
+    wakeLock: null,
+    userAudioUnlocked: false
+};
+
+// Global DOM references
+const dom = {
+    tbody: document.getElementById('schedule-tbody'),
+    totalRows: document.getElementById('total-rows-count'),
+    stopBtn: document.getElementById('stop-playback-btn'),
+    addQuickTimerBtn: document.getElementById('add-quick-timer-btn'),
+    quickTimerInput: document.getElementById('quick-timer-input'),
+    quickTimerTask: document.getElementById('quick-timer-task'),
+    addRowBtn: document.getElementById('add-row-btn'),
+    sortBtn: document.getElementById('sort-schedule-btn'),
+    // Settings
+    settingsModal: document.getElementById('settings-modal'),
+    settingsPanel: document.getElementById('settings-panel'),
+    settingsToggleBtn: document.getElementById('settings-toggle-btn'),
+    closeSettingsBtn: document.getElementById('close-settings-btn'),
+    themeToggleBtn: document.getElementById('theme-toggle-btn'),
+    themeText: document.getElementById('theme-text'),
+    themeIcon: document.getElementById('theme-icon'),
+    voiceZhSelect: document.getElementById('voice-zh-select'),
+    voiceEnSelect: document.getElementById('voice-en-select'),
+    rateZhRange: document.getElementById('rate-zh-range'),
+    rateEnRange: document.getElementById('rate-en-range'),
+    rateZhVal: document.getElementById('rate-zh-val'),
+    rateEnVal: document.getElementById('rate-en-val'),
+    testBilingualBtn: document.getElementById('test-bilingual-speech-btn'),
+    // TXT File Ops
+    importTxtFile: document.getElementById('import-txt-file'),
+    exportTxtBtn: document.getElementById('export-txt-btn'),
+    // Weather
+    weatherIcon: document.getElementById('weather-icon'),
+    weatherTemp: document.getElementById('weather-temp'),
+    weatherDesc: document.getElementById('weather-desc'),
+    weatherSearchInput: document.getElementById('weather-search-input'),
+    weatherSearchBtn: document.getElementById('weather-search-btn'),
+    weatherLocateBtn: document.getElementById('weather-locate-btn'),
+    // Battery & Clock
+    batteryIcon: document.getElementById('battery-icon'),
+    batteryText: document.getElementById('battery-text'),
+    clockDisplay: document.getElementById('clock-display'),
+    dateDisplay: document.getElementById('date-display'),
+    chimeToggleBtn: document.getElementById('chime-toggle-btn'),
+    chimeStatusText: document.getElementById('chime-status-text')
+};
+
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    const bgColors = {
+        info: 'bg-sky-800/90 border-sky-600',
+        success: 'bg-emerald-800/90 border-emerald-600',
+        warning: 'bg-amber-800/90 border-amber-600',
+        error: 'bg-red-800/90 border-red-600'
+    };
+    
+    toast.className = `pointer-events-auto px-4 py-2.5 rounded-lg border shadow-lg text-xs font-medium text-white flex items-center gap-2 transform transition-all duration-300 translate-y-2 opacity-0 ${bgColors[type] || bgColors.info}`;
+    toast.innerHTML = `<i class="fa-solid fa-circle-info"></i> <span>${escapeHtml(message)}</span>`;
+    
+    container.appendChild(toast);
+    requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+    });
+
+    setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+    }, 3500);
+}
+
+// Mobile/Browser Audio policy unlock handler
+function unlockAudioContext() {
+    if (state.userAudioUnlocked) return;
+    
+    // Play a silent buffer or trigger empty synthesis to satisfy browser touch user interaction policies
+    if ('speechSynthesis' in window) {
+        const silentUtterance = new SpeechSynthesisUtterance('');
+        silentUtterance.volume = 0;
+        window.speechSynthesis.speak(silentUtterance);
+    }
+    
+    state.userAudioUnlocked = true;
+    document.removeEventListener('click', unlockAudioContext);
+    document.removeEventListener('touchstart', unlockAudioContext);
+}
+document.addEventListener('click', unlockAudioContext);
+document.addEventListener('touchstart', unlockAudioContext);
+
+/**
+ * 1. Weather Widget with Open-Meteo API & Geolocation
+ */
+async function fetchWeatherByCoords(lat, lon, cityName = null) {
+    try {
+        dom.weatherDesc.textContent = cityName ? `Loading ${cityName}...` : 'Fetching weather...';
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Weather network error');
+        const data = await res.json();
+        
+        if (data.current_weather) {
+            const { temperature, weathercode } = data.current_weather;
+            const weatherInfo = mapWmoCodeToDetails(weathercode);
+            dom.weatherTemp.textContent = `${Math.round(temperature)}°C`;
+            dom.weatherDesc.textContent = cityName || weatherInfo.desc;
+            dom.weatherIcon.textContent = weatherInfo.icon;
+        }
+    } catch (err) {
+        dom.weatherDesc.textContent = 'Weather unavailable';
+        console.error('Weather error:', err);
+    }
+}
+
+function mapWmoCodeToDetails(code) {
+    // WMO Weather interpretation codes
+    if (code === 0) return { desc: 'Sunny / Clear', icon: '☀️' };
+    if ([1, 2].includes(code)) return { desc: 'Partly Cloudy', icon: '⛅' };
+    if (code === 3) return { desc: 'Overcast', icon: '☁️' };
+    if ([45, 48].includes(code)) return { desc: 'Foggy', icon: '🌫️' };
+    if ([51, 53, 55, 61, 63].includes(code)) return { desc: 'Light Rain', icon: '🌧️' };
+    if ([65, 80, 81, 82].includes(code)) return { desc: 'Heavy Rain', icon: '🌧️' };
+    if ([95, 96, 99].includes(code)) return { desc: 'Thunderstorm', icon: '🌩️' };
+    if ([71, 73, 75, 77, 85, 86].includes(code)) return { desc: 'Snow', icon: '❄️' };
+    return { desc: 'Cloudy', icon: '⛅' };
+}
+
+function initGeolocationWeather() {
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude);
+            },
+            (err) => {
+                console.warn('Geolocation declined or failed, falling back to default city:', err.message);
+                searchCityWeather('Beijing');
+            },
+            { timeout: 8000 }
+        );
+    } else {
+        searchCityWeather('Beijing');
+    }
+}
+
+async function searchCityWeather(query) {
+    if (!query || !query.trim()) return;
+    try {
+        dom.weatherDesc.textContent = `Searching ${query}...`;
+        const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`;
+        const res = await fetch(geoUrl);
+        const data = await res.json();
+        
+        if (data.results && data.results.length > 0) {
+            const place = data.results[0];
+            await fetchWeatherByCoords(place.latitude, place.longitude, place.name);
+        } else {
+            dom.weatherDesc.textContent = 'City not found';
+            showToast('City not found. Please try another location.', 'warning');
+        }
+    } catch (err) {
+        dom.weatherDesc.textContent = 'Search failed';
+        showToast('Weather search failed.', 'error');
+    }
+}
+
+// Weather Event Listeners
+dom.weatherSearchBtn.addEventListener('click', () => searchCityWeather(dom.weatherSearchInput.value));
+dom.weatherSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') searchCityWeather(dom.weatherSearchInput.value);
+});
+dom.weatherLocateBtn.addEventListener('click', () => initGeolocationWeather());
+
+/**
+ * 2. Mixed Bilingual Speech Engine (Chinese Native + English Accent)
+ */
+function initSpeechEngine() {
+    if (!('speechSynthesis' in window)) {
+        showToast('Speech Synthesis is not supported in this browser.', 'warning');
+        return;
+    }
+
+    const loadVoices = () => {
+        state.voices = window.speechSynthesis.getVoices();
+        populateVoiceSelects();
+    };
+
+    loadVoices();
+    if (speechSynthesis.onvoiceschanged !== undefined) {
+        speechSynthesis.onvoiceschanged = loadVoices;
+    }
+}
+
+function populateVoiceSelects() {
+    dom.voiceZhSelect.innerHTML = '';
+    dom.voiceEnSelect.innerHTML = '';
+
+    const zhVoices = state.voices.filter(v => v.lang.startsWith('zh'));
+    const enVoices = state.voices.filter(v => v.lang.startsWith('en'));
+
+    // Chinese Select Populating
+    if (zhVoices.length > 0) {
+        zhVoices.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v.name;
+            opt.textContent = `${v.name} (${v.lang})`;
+            dom.voiceZhSelect.appendChild(opt);
+        });
+        // Prefer Edge or Neural Chinese voices if available
+        const prefZh = zhVoices.find(v => v.name.includes('Xiaoxiao') || v.name.includes('Yunxi') || v.name.includes('Chinese')) || zhVoices[0];
+        state.selectedZhVoice = prefZh;
+        dom.voiceZhSelect.value = prefZh.name;
+    } else {
+        dom.voiceZhSelect.innerHTML = '<option value="">Default System Chinese</option>';
+    }
+
+    // English Select Populating
+    if (enVoices.length > 0) {
+        enVoices.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v.name;
+            opt.textContent = `${v.name} (${v.lang})`;
+            dom.voiceEnSelect.appendChild(opt);
+        });
+        // Prefer Edge or US Accent voices if available
+        const prefEn = enVoices.find(v => v.name.includes('Jenny') || v.name.includes('Guy') || v.name.includes('US') || v.name.includes('Natural')) || enVoices[0];
+        state.selectedEnVoice = prefEn;
+        dom.voiceEnSelect.value = prefEn.name;
+    } else {
+        dom.voiceEnSelect.innerHTML = '<option value="">Default System English</option>';
+    }
+}
+
+// Sub-chunking mixed Chinese and English text for natural sequential playback
+function speakBilingualText(text) {
+    if (!text || !text.trim()) return;
+
+    // Immediately stop any existing speech or audio playback
+    stopAllPlayback();
+
+    // Regex to separate Chinese characters from Non-Chinese (English/ASCII/Digits/Punctuation)
+    const regex = /([\u4e00-\u9fa5]+|[^\u4e00-\u9fa5]+)/g;
+    const matches = text.match(regex);
+
+    if (!matches || matches.length === 0) return;
+
+    state.speechQueue = matches.map(chunk => {
+        const isChinese = /[\u4e00-\u9fa5]/.test(chunk);
+        return {
+            text: chunk,
+            lang: isChinese ? 'zh' : 'en'
+        };
+    });
+
+    playNextSpeechChunk();
+}
+
+function playNextSpeechChunk() {
+    if (state.speechQueue.length === 0) {
+        state.isSpeakingQueue = false;
+        return;
+    }
+
+    state.isSpeakingQueue = true;
+    const item = state.speechQueue.shift();
+
+    const utterance = new SpeechSynthesisUtterance(item.text);
+
+    if (item.lang === 'zh') {
+        utterance.rate = parseFloat(dom.rateZhRange.value) || 1.0;
+        if (state.selectedZhVoice) utterance.voice = state.selectedZhVoice;
+        utterance.lang = 'zh-CN';
+    } else {
+        utterance.rate = parseFloat(dom.rateEnRange.value) || 1.0;
+        if (state.selectedEnVoice) utterance.voice = state.selectedEnVoice;
+        utterance.lang = 'en-US';
+    }
+
+    utterance.onend = () => {
+        playNextSpeechChunk();
+    };
+
+    utterance.onerror = (err) => {
+        console.error('Speech chunk error:', err);
+        playNextSpeechChunk();
+    };
+
+    window.speechSynthesis.speak(utterance);
+}
+
+// Voice Select Listeners
+dom.voiceZhSelect.addEventListener('change', (e) => {
+    state.selectedZhVoice = state.voices.find(v => v.name === e.target.value) || null;
+});
+dom.voiceEnSelect.addEventListener('change', (e) => {
+    state.selectedEnVoice = state.voices.find(v => v.name === e.target.value) || null;
+});
+dom.rateZhRange.addEventListener('input', (e) => {
+    dom.rateZhVal.textContent = `${parseFloat(e.target.value).toFixed(1)}x`;
+});
+dom.rateEnRange.addEventListener('input', (e) => {
+    dom.rateEnVal.textContent = `${parseFloat(e.target.value).toFixed(1)}x`;
+});
+dom.testBilingualBtn.addEventListener('click', () => {
+    speakBilingualText('Hello World! 欢迎体验智能 Speech Engine, smooth mixed playback!');
+});
+
+/**
+ * 3 & 4. Robust Audio Playback (.mp3, .wav, .ogg) & Emergency STOP
+ */
+function isAudioUrl(str) {
+    if (!str) return false;
+    const cleanStr = str.trim().toLowerCase();
+    return cleanStr.startsWith('http://') || cleanStr.startsWith('https://') || cleanStr.startsWith('data:audio/') ||
+           /\.(mp3|wav|ogg|aac|m4a)($|\?)/i.test(cleanStr);
+}
+
+function playAudioFile(url) {
+    stopAllPlayback();
+
+    try {
+        state.audioInstance = new Audio(url);
+        state.audioInstance.crossOrigin = "anonymous";
+        
+        const playPromise = state.audioInstance.play();
+        if (playPromise !== undefined) {
+            playPromise.then(() => {
+                showToast('Playing audio file...', 'info');
+            }).catch(error => {
+                console.warn('Audio playback prevented or failed:', error);
+                showToast('Audio playback failed or blocked by browser.', 'error');
+            });
+        }
+
+        state.audioInstance.onended = () => {
+            state.audioInstance = null;
+        };
+
+        state.audioInstance.onerror = () => {
+            showToast('Failed to load audio source.', 'error');
+            state.audioInstance = null;
+        };
+    } catch (err) {
+        console.error('Audio initialization error:', err);
+        showToast('Error playing audio.', 'error');
+    }
+}
+
+/**
+ * STOP Button Handler: Immediately halts speech and audio without disturbing scheduled timers.
+ */
+function stopAllPlayback() {
+    // 1. Cancel WebSpeech Synthesis Queue
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+    }
+    state.speechQueue = [];
+    state.isSpeakingQueue = false;
+
+    // 2. Pause and reset active Audio instance
+    if (state.audioInstance) {
+        try {
+            state.audioInstance.pause();
+            state.audioInstance.currentTime = 0;
+        } catch (e) {
+            console.error(e);
+        }
+        state.audioInstance = null;
+    }
+}
+
+dom.stopBtn.addEventListener('click', () => {
+    stopAllPlayback();
+    showToast('Playback stopped.', 'warning');
+});
+
+/**
+ * 5. Clock, Hourly Chime, Battery Level & Screen Wake Lock
+ */
+function updateClockAndChime() {
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+
+    dom.clockDisplay.textContent = `${hours}:${minutes}:${seconds}`;
+    dom.dateDisplay.textContent = now.toISOString().split('T')[0];
+
+    // Hourly Chime trigger on the exact top of the hour
+    if (state.hourlyChimeEnabled && now.getMinutes() === 0 && now.getSeconds() === 0 && state.lastChimeHour !== now.getHours()) {
+        state.lastChimeHour = now.getHours();
+        const displayHour = now.getHours() % 12 || 12;
+        speakBilingualText(`Ding dong! It is now ${displayHour} o'clock. 现在是整点 ${now.getHours()} 点.`);
+    }
+}
+setInterval(updateClockAndChime, 1000);
+
+// Chime toggle listener
+dom.chimeToggleBtn.addEventListener('click', () => {
+    state.hourlyChimeEnabled = !state.hourlyChimeEnabled;
+    dom.chimeStatusText.textContent = `Chime: ${state.hourlyChimeEnabled ? 'ON' : 'OFF'}`;
+    dom.chimeToggleBtn.classList.toggle('bg-gray-800', !state.hourlyChimeEnabled);
+    dom.chimeToggleBtn.classList.toggle('bg-sky-900', state.hourlyChimeEnabled);
+    showToast(`Hourly chime ${state.hourlyChimeEnabled ? 'enabled' : 'disabled'}.`, 'info');
+});
+
+// Battery API integration
+function initBatteryStatus() {
+    if ('getBattery' in navigator) {
+        navigator.getBattery().then(battery => {
+            const updateBattery = () => {
+                const level = Math.round(battery.level * 100);
+                dom.batteryText.textContent = `${level}%`;
+
+                if (level <= 20) {
+                    dom.batteryIcon.className = 'fa-solid fa-battery-quarter text-red-500 text-sm animate-pulse';
+                } else if (level <= 50) {
+                    dom.batteryIcon.className = 'fa-solid fa-battery-half text-amber-400 text-sm';
+                } else {
+                    dom.batteryIcon.className = 'fa-solid fa-battery-full text-green-400 text-sm';
+                }
+            };
+            updateBattery();
+            battery.addEventListener('levelchange', updateBattery);
+            battery.addEventListener('chargingchange', updateBattery);
+        }).catch(() => {
+            dom.batteryText.textContent = 'N/A';
+        });
+    } else {
+        dom.batteryText.textContent = 'N/A';
+    }
+}
+
+// Screen Wake Lock API to prevent mobile dimming
+async function requestWakeLock() {
+    try {
+        if ('wakeLock' in navigator) {
+            state.wakeLock = await navigator.wakeLock.request('screen');
+        }
+    } catch (err) {
+        console.warn(`Wake Lock Error: ${err.name}, ${err.message}`);
+    }
+}
+document.addEventListener('visibilitychange', async () => {
+    if (state.wakeLock !== null && document.visibilityState === 'visible') {
+        await requestWakeLock();
+    }
+});
+
+/**
+ * Dynamic Excel-like Schedule Table & Timer Engine
+ */
+function renderScheduleTable() {
+    dom.tbody.innerHTML = '';
+    dom.totalRows.textContent = state.schedule.length;
+
+    state.schedule.forEach((row, index) => {
+        const tr = document.createElement('tr');
+        tr.className = `border-b border-gray-700/60 hover:bg-gray-700/30 transition ${row.done ? 'bg-gray-900/40 text-gray-500' : ''}`;
+
+        const isAudio = isAudioUrl(row.content);
+
+        tr.innerHTML = `
+            <td class="p-3 text-center">
+                <input type="checkbox" ${row.done ? 'checked' : ''} data-id="${row.id}" class="row-checkbox accent-sky-500 w-4 h-4 cursor-pointer">
+            </td>
+            <td class="p-3">
+                <input type="text" value="${escapeHtml(row.trigger)}" data-id="${row.id}" data-field="trigger" 
+                    class="row-input ${row.done ? 'row-done text-gray-500' : 'text-sky-300 font-mono'} bg-transparent border-b border-transparent hover:border-gray-600 focus:border-sky-500 focus:bg-gray-900 w-full px-1 py-0.5 outline-none rounded">
+            </td>
+            <td class="p-3">
+                <div class="flex items-center gap-2">
+                    <i class="${isAudio ? 'fa-solid fa-music text-purple-400' : 'fa-solid fa-comment-dots text-emerald-400'} text-xs"></i>
+                    <input type="text" value="${escapeHtml(row.content)}" data-id="${row.id}" data-field="content" 
+                        class="row-input ${row.done ? 'row-done text-gray-500' : 'text-gray-100'} bg-transparent border-b border-transparent hover:border-gray-600 focus:border-sky-500 focus:bg-gray-900 w-full px-1 py-0.5 outline-none rounded">
+                </div>
+            </td>
+            <td class="p-3 text-center">
+                <button data-id="${row.id}" class="trigger-row-btn px-2.5 py-1 rounded bg-sky-900/60 hover:bg-sky-800 text-sky-300 border border-sky-700 text-[11px] font-medium transition flex items-center justify-center gap-1 mx-auto">
+                    <i class="fa-solid ${isAudio ? 'fa-play' : 'fa-volume-high'}"></i> Test
+                </button>
+            </td>
+            <td class="p-3 text-center">
+                <button data-id="${row.id}" class="delete-row-btn text-gray-400 hover:text-red-400 p-1 transition" title="Delete Row">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </td>
+        `;
+
+        dom.tbody.appendChild(tr);
+    });
+
+    bindTableEvents();
+}
+
+function bindTableEvents() {
+    // Checkbox Done toggle
+    document.querySelectorAll('.row-checkbox').forEach(cb => {
+        cb.addEventListener('change', (e) => {
+            const id = e.target.dataset.id;
+            const item = state.schedule.find(s => s.id === id);
+            if (item) {
+                item.done = e.target.checked;
+                renderScheduleTable();
+            }
+        });
+    });
+
+    // Inputs blur/change edit binding
+    document.querySelectorAll('.row-input').forEach(input => {
+        input.addEventListener('change', (e) => {
+            const id = e.target.dataset.id;
+            const field = e.target.dataset.field;
+            const item = state.schedule.find(s => s.id === id);
+            if (item && field) {
+                item[field] = e.target.value;
+            }
+        });
+    });
+
+    // Test row audio/speech button
+    document.querySelectorAll('.trigger-row-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.currentTarget.dataset.id;
+            const item = state.schedule.find(s => s.id === id);
+            if (item) {
+                executeRowContent(item.content);
+            }
+        });
+    });
+
+    // Delete row button
+    document.querySelectorAll('.delete-row-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.currentTarget.dataset.id;
+            state.schedule = state.schedule.filter(s => s.id !== id);
+            renderScheduleTable();
+            showToast('Row deleted.', 'info');
+        });
+    });
+}
+
+function executeRowContent(content) {
+    if (!content) return;
+    if (isAudioUrl(content)) {
+        playAudioFile(content);
+    } else {
+        speakBilingualText(content);
+    }
+}
+
+// Add New Blank Row
+dom.addRowBtn.addEventListener('click', () => {
+    state.schedule.push({
+        id: Date.now().toString(),
+        done: false,
+        trigger: '00:00',
+        content: 'New Schedule Item'
+    });
+    renderScheduleTable();
+});
+
+// Auto-sort Schedule Rows
+dom.sortBtn.addEventListener('click', () => {
+    state.schedule.sort((a, b) => a.trigger.localeCompare(b.trigger));
+    renderScheduleTable();
+    showToast('Schedule auto-sorted by time rules.', 'success');
+});
+
+// Quick Timer Parser (e.g. 10s, 2m, 1h20m)
+function parseDurationToSeconds(str) {
+    if (!str) return 0;
+    let totalSec = 0;
+    const regex = /(\d+)\s*(h|m|s)/gi;
+    let match;
+    while ((match = regex.exec(str)) !== null) {
+        const val = parseInt(match[1]);
+        const unit = match[2].toLowerCase();
+        if (unit === 'h') totalSec += val * 3600;
+        if (unit === 'm') totalSec += val * 60;
+        if (unit === 's') totalSec += val;
+    }
+    return totalSec;
+}
+
+// Quick Timer Button
+dom.addQuickTimerBtn.addEventListener('click', () => {
+    const timeStr = dom.quickTimerInput.value.trim();
+    const taskStr = dom.quickTimerTask.value.trim() || 'Timer Task Alert';
+
+    const seconds = parseDurationToSeconds(timeStr);
+    if (seconds <= 0) {
+        showToast('Invalid duration! Use format e.g. 10s, 2m, 1h20m', 'warning');
+        return;
+    }
+
+    // Calculate cumulative target time
+    const targetTime = new Date(Date.now() + seconds * 1000);
+    const targetFormatted = `${String(targetTime.getHours()).padStart(2, '0')}:${String(targetTime.getMinutes()).padStart(2, '0')}:${String(targetTime.getSeconds()).padStart(2, '0')}`;
+
+    state.schedule.push({
+        id: Date.now().toString(),
+        done: false,
+        trigger: targetFormatted,
+        content: taskStr
+    });
+
+    renderScheduleTable();
+    showToast(`Added task at ${targetFormatted} (in ${timeStr})`, 'success');
+    dom.quickTimerInput.value = '';
+    dom.quickTimerTask.value = '';
+});
+
+// Background Schedule Runner (Checks every second for matching triggers)
+setInterval(() => {
+    const now = new Date();
+    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    const shortTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    state.schedule.forEach(row => {
+        if (!row.done) {
+            if (row.trigger === currentTimeStr || row.trigger === shortTimeStr) {
+                row.done = true;
+                renderScheduleTable();
+                executeRowContent(row.content);
+            }
+        }
+    });
+}, 1000);
+
+/**
+ * File Import, Export & Settings Panel Drawer Controls
+ */
+// Settings Modal Open/Close
+dom.settingsToggleBtn.addEventListener('click', () => {
+    dom.settingsModal.classList.remove('hidden');
+    requestAnimationFrame(() => {
+        dom.settingsModal.classList.remove('opacity-0');
+        dom.settingsPanel.classList.remove('translate-x-full');
+    });
+});
+
+const closeSettings = () => {
+    dom.settingsPanel.classList.add('translate-x-full');
+    dom.settingsModal.classList.add('opacity-0');
+    setTimeout(() => {
+        dom.settingsModal.classList.add('hidden');
+    }, 300);
+};
+
+dom.closeSettingsBtn.addEventListener('click', closeSettings);
+dom.settingsModal.addEventListener('click', (e) => {
+    if (e.target === dom.settingsModal) closeSettings();
+});
+
+// Light/Dark Theme Switcher
+let isDarkMode = true;
+dom.themeToggleBtn.addEventListener('click', () => {
+    isDarkMode = !isDarkMode;
+    if (isDarkMode) {
+        document.body.classList.add('bg-gray-900', 'text-gray-100');
+        document.body.classList.remove('bg-gray-100', 'text-gray-900');
+        dom.themeText.textContent = 'Dark Mode';
+        dom.themeIcon.className = 'fa-solid fa-moon text-indigo-400';
+    } else {
+        document.body.classList.add('bg-gray-100', 'text-gray-900');
+        document.body.classList.remove('bg-gray-900', 'text-gray-100');
+        dom.themeText.textContent = 'Light Mode';
+        dom.themeIcon.className = 'fa-solid fa-sun text-amber-500';
+    }
+});
+
+// Import TXT File & Parse with interval / repeat rules
+dom.importTxtFile.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+        const text = evt.target.result;
+        const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+
+        if (lines.length === 0) {
+            showToast('Imported TXT is empty.', 'warning');
+            return;
+        }
+
+        const linesPerRule = parseInt(document.getElementById('import-lines-per-rule').value) || 1;
+        const repeatCount = parseInt(document.getElementById('import-repeat-count').value) || 10;
+        const intervalSec = parseInt(document.getElementById('import-interval-sec').value) || 30;
+        const isRandom = document.getElementById('import-random-check').checked;
+
+        let currentTime = new Date();
+
+        for (let i = 0; i < repeatCount; i++) {
+            currentTime = new Date(currentTime.getTime() + intervalSec * 1000);
+            const triggerStr = `${String(currentTime.getHours()).padStart(2, '0')}:${String(currentTime.getMinutes()).padStart(2, '0')}:${String(currentTime.getSeconds()).padStart(2, '0')}`;
+
+            let contentChunk = '';
+            if (isRandom) {
+                const randIndex = Math.floor(Math.random() * lines.length);
+                contentChunk = lines[randIndex];
+            } else {
+                const startIndex = (i * linesPerRule) % lines.length;
+                contentChunk = lines.slice(startIndex, startIndex + linesPerRule).join(' ');
+            }
+
+            state.schedule.push({
+                id: Date.now().toString() + i,
+                done: false,
+                trigger: triggerStr,
+                content: contentChunk
+            });
+        }
+
+        renderScheduleTable();
+        showToast(`Imported TXT and generated ${repeatCount} schedule items!`, 'success');
+        closeSettings();
+    };
+    reader.readAsText(file);
+});
+
+// Export TXT File
+dom.exportTxtBtn.addEventListener('click', () => {
+    const lines = state.schedule.map(s => `${s.trigger} | ${s.content}`);
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `schedule_export_${new Date().toISOString().split('T')[0]}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Schedule exported as TXT!', 'success');
+});
+
+// Utility HTML escape helper
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+}
+
+// Initialize App on Window Load
+window.onload = function() {
+    initGeolocationWeather();
+    initSpeechEngine();
+    initBatteryStatus();
+    requestWakeLock();
+    renderScheduleTable();
+};
+</script>
+</body>
+</html>
