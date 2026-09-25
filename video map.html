@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>WebRTC Shared Map & Media Assistant</title>
+  <!-- Leaflet CSS & JS 用于共享地图 -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- PeerJS 用于极简建立 WebRTC 连接 -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <!-- QRCode.js 用于展示二维码直连 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background-color: #0f172a; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    
+    header { background: #1e293b; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
+    .status-badge { font-size: 12px; padding: 4px 8px; border-radius: 12px; background: #dc2626; color: white; }
+    .status-badge.connected { background: #16a34a; }
+
+    main { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 8px; overflow-y: auto; }
+
+    /* 控制面板 */
+    .panel { background: #1e293b; border-radius: 8px; padding: 12px; border: 1px solid #334155; }
+    .row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+    input[type="text"] { flex: 1; background: #0f172a; border: 1px solid #475569; color: white; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
+    button { background: #2563eb; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 14px; white-space: nowrap; }
+    button:active { opacity: 0.8; }
+    button.active { background: #dc2626; }
+    button:disabled { background: #475569; cursor: not-allowed; }
+
+    /* 地图与音视频容器 */
+    #map-container { flex: 1; min-height: 250px; border-radius: 8px; overflow: hidden; border: 1px solid #334155; position: relative; }
+    #map { width: 100%; height: 100%; }
+
+    /* 视频展示窗口 */
+    .video-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; height: 120px; }
+    .video-box { background: #000; border-radius: 6px; overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center; }
+    video { width: 100%; height: 100%; object-fit: cover; }
+    .video-label { position: absolute; bottom: 4px; left: 4px; background: rgba(0,0,0,0.6); font-size: 10px; padding: 2px 6px; border-radius: 4px; }
+
+    /* 二维码弹窗 */
+    #qrcode-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 999; justify-content: center; align-items: center; flex-direction: column; gap: 12px; }
+    #qrcode { background: white; padding: 12px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h3>Shared Map & WebRTC</h3>
+    <span id="status" class="status-badge">未连接</span>
+  </header>
+
+  <main>
+    <!-- 链接建立面板 -->
+    <div class="panel">
+      <div class="row">
+        <span>我的 ID: </span>
+        <strong id="my-id" style="color: #38bdf8;">正在生成...</strong>
+        <button onclick="showQRCode()">二维码直连</button>
+      </div>
+      <div class="row">
+        <input type="text" id="remote-id-input" placeholder="输入对方 ID" />
+        <button id="connect-btn" onclick="connectToPeer()">呼叫/连接</button>
+      </div>
+    </div>
+
+    <!-- 媒体流控制面板（关键：预加载与 Toggle 机制） -->
+    <div class="panel">
+      <div class="row" style="justify-content: space-around; margin-bottom: 0;">
+        <button id="mic-btn" onclick="toggleMicrophone()">🎤 开启麦克风</button>
+        <button id="cam-btn" onclick="toggleCamera()">📷 开启摄像头</button>
+        <button onclick="shareMyLocation()">📍 共享我的位置</button>
+      </div>
+    </div>
+
+    <!-- 视频预览区 -->
+    <div class="video-grid">
+      <div class="video-box">
+        <video id="local-video" autoplay playsinline muted></video>
+        <span class="video-label">本地画面</span>
+      </div>
+      <div class="video-box">
+        <video id="remote-video" autoplay playsinline></video>
+        <span class="video-label">对方画面</span>
+      </div>
+    </div>
+
+    <!-- 共享地图区 -->
+    <div id="map-container">
+      <div id="map"></div>
+    </div>
+  </main>
+
+  <!-- 二维码模态框 -->
+  <div id="qrcode-modal" onclick="hideQRCode()">
+    <div id="qrcode"></div>
+    <p style="color: white; font-size: 12px;">使用扫码直接连接，避免切出 Chrome</p>
+  </div>
+
+  <script>
+    let peer = null;
+    let dataConnection = null;
+    let mediaCall = null;
+    
+    let localStream = null;
+    let micEnabled = false;
+    let camEnabled = false;
+
+    let map = null;
+    let localMarker = null;
+    let remoteMarker = null;
+
+    // 1. 初始化页面与地图
+    window.addEventListener('DOMContentLoaded', async () => {
+      initMap();
+      await initLocalMedia(); // 初始化并获取媒体设备（默认禁音/禁用摄像头）
+      initPeer();
+    });
+
+    // 初始化 Leaflet 地图
+    function initMap() {
+      map = L.map('map').setView([39.9042, 116.4074], 13); // 默认坐标
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+      }).addTo(map);
+    }
+
+    // 2. 关键优化：建立连接前申请好流，但默认关闭轨道（Enabled = false）
+    async function initLocalMedia() {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        
+        // 初始静音 & 初始关闭画面（防止后续动态添加 Track 触发 SDP 重新协商导致断连）
+        localStream.getAudioTracks().forEach(t => t.enabled = false);
+        localStream.getVideoTracks().forEach(t => t.enabled = false);
+
+        document.getElementById('local-video').srcObject = localStream;
+      } catch (err) {
+        console.warn("未获取到音视频权限，将以纯数据模式运行:", err);
+      }
+    }
+
+    // 3. 初始化 PeerJS 服务
+    function initPeer() {
+      peer = new Peer();
+
+      peer.on('open', id => {
+        document.getElementById('my-id').innerText = id;
+      });
+
+      // 处理 incoming 呼叫/数据通道
+      peer.on('connection', conn => {
+        setupDataConnection(conn);
+      });
+
+      peer.on('call', call => {
+        // 收到视频/语音呼叫时，使用预加载好的 localStream 应答
+        call.answer(localStream);
+        setupMediaCall(call);
+      });
+
+      peer.on('error', err => {
+        console.error('PeerJS Error:', err);
+      });
+    }
+
+    // 发起连接
+    function connectToPeer() {
+      const remoteId = document.getElementById('remote-id-input').value.trim();
+      if (!remoteId) return alert("请输入对方 ID");
+
+      // 建立数据通道（用于地图定位共享）
+      const conn = peer.connect(remoteId);
+      setupDataConnection(conn);
+
+      // 建立媒体通道（用于音视频通话）
+      if (localStream) {
+        const call = peer.call(remoteId, localStream);
+        setupMediaCall(call);
+      }
+    }
+
+    // 绑定数据通道事件（地图定位同步）
+    function setupDataConnection(conn) {
+      dataConnection = conn;
+
+      conn.on('open', () => {
+        updateStatus(true);
+      });
+
+      conn.on('data', data => {
+        if (data.type === 'location') {
+          updateRemoteLocation(data.lat, data.lng);
+        }
+      });
+
+      conn.on('close', () => updateStatus(false));
+    }
+
+    // 绑定音视频流事件
+    function setupMediaCall(call) {
+      mediaCall = call;
+
+      call.on('stream', remoteStream => {
+        document.getElementById('remote-video').srcObject = remoteStream;
+      });
+
+      call.on('close', () => {
+        document.getElementById('remote-video').srcObject = null;
+      });
+    }
+
+    // 4. 控制逻辑：仅切换 enabled 状态，绝不动 PeerConnection / Track 结构！
+    function toggleMicrophone() {
+      if (!localStream) return alert("未找到麦克风设备");
+      micEnabled = !micEnabled;
+      localStream.getAudioTracks().forEach(t => t.enabled = micEnabled);
+
+      const btn = document.getElementById('mic-btn');
+      btn.innerText = micEnabled ? "🎤 关闭麦克风" : "🎤 开启麦克风";
+      btn.classList.toggle('active', micEnabled);
+    }
+
+    function toggleCamera() {
+      if (!localStream) return alert("未找到摄像头设备");
+      camEnabled = !camEnabled;
+      localStream.getVideoTracks().forEach(t => t.enabled = camEnabled);
+
+      const btn = document.getElementById('cam-btn');
+      btn.innerText = camEnabled ? "📷 关闭摄像头" : "📷 开启摄像头";
+      btn.classList.toggle('active', camEnabled);
+    }
+
+    // 5. 地图定位共享逻辑
+    function shareMyLocation() {
+      if (!navigator.geolocation) return alert("浏览器不支持地理定位");
+
+      navigator.geolocation.getCurrentPosition(pos => {
+        const { latitude, longitude } = pos.coords;
+        
+        // 更新本地地图 Marker
+        if (!localMarker) {
+          localMarker = L.marker([latitude, longitude]).addTo(map).bindPopup("我的位置").openPopup();
+        } else {
+          localMarker.setLatLng([latitude, longitude]);
+        }
+        map.setView([latitude, longitude], 15);
+
+        // 通过 WebRTC 实时广播位置给对方
+        if (dataConnection && dataConnection.open) {
+          dataConnection.send({ type: 'location', lat: latitude, lng: longitude });
+        } else {
+          alert("定位成功，但 WebRTC 未连接，无法发送给对方");
+        }
+      }, err => {
+        alert("获取定位失败: " + err.message);
+      });
+    }
+
+    function updateRemoteLocation(lat, lng) {
+      if (!remoteMarker) {
+        remoteMarker = L.marker([lat, lng], { hue: 'blue' }).addTo(map).bindPopup("对方位置").openPopup();
+      } else {
+        remoteMarker.setLatLng([lat, lng]);
+      }
+      map.fitBounds([localMarker ? localMarker.getLatLng() : [lat, lng], [lat, lng]]);
+    }
+
+    // UI 状态辅助方法
+    function updateStatus(isConnected) {
+      const el = document.getElementById('status');
+      el.innerText = isConnected ? "已连接" : "未连接";
+      el.className = `status-badge ${isConnected ? 'connected' : ''}`;
+    }
+
+    function showQRCode() {
+      const id = document.getElementById('my-id').innerText;
+      if (!id || id === '正在生成...') return;
+      
+      const qrel = document.getElementById('qrcode');
+      qrel.innerHTML = "";
+      new QRCode(qrel, { text: id, width: 160, height: 160 });
+      document.getElementById('qrcode-modal').style.display = 'flex';
+    }
+
+    function hideQRCode() {
+      document.getElementById('qrcode-modal').style.display = 'none';
+    }
+
+    // 6. 防冻结补丁：监听网页切换，切回前台时唤醒连接
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        if (dataConnection && !dataConnection.open) {
+          console.log("检测到切回前台，正在尝试恢复连接...");
+          dataConnection.peerConnection && dataConnection.peerConnection.restartIce();
+        }
+      }
+    });
+  </script>
+</body>
+</html>
