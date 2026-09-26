@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>My Location & Friend Map Sharing</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { 
+            height: 100%; 
+            width: 100%; 
+            overflow: hidden; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            background: #f0f2f5; 
+        }
+
+        .map-app { display: flex; width: 100%; height: 100%; overflow: hidden; }
+        .map-panel { 
+            width: 380px; 
+            flex: 0 0 380px; 
+            height: 100%;
+            overflow-y: auto; 
+            padding: 14px; 
+            background: #fff; 
+            box-shadow: 2px 0 12px rgba(0,0,0,0.1); 
+            z-index: 1000; 
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1 { font-size: 1.2rem; color: #075985; margin-bottom: 10px; }
+        .section { margin-bottom: 12px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; flex-shrink: 0; }
+        .section h2 { margin-bottom: 8px; font-size: 0.95rem; color: #0f172a; }
+        .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+        .row:last-child { margin-bottom: 0; }
+
+        input[type="text"] { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; flex: 1; min-width: 120px; font-size: 13.5px; }
+        select { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13.5px; background: #fff; }
+        
+        button { padding: 8px 12px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; }
+        button:hover { opacity: 0.9; }
+        .btn-secondary { background: #64748b; }
+        .btn-danger { background: #dc2626; }
+        .btn-success { background: #16a34a; }
+        .btn-info { background: #0284c7; }
+
+        .address-box { font-size: 0.88rem; font-weight: bold; color: #1e293b; background: #fff; padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; margin-top: 4px; line-height: 1.4; word-break: break-all; white-space: pre-wrap; }
+        .coords-info { font-weight: normal; font-size: 0.75rem; color: #64748b; margin-top: 4px; }
+
+        #map-container { flex: 1; position: relative; height: 100%; }
+        #map { width: 100%; height: 100%; background: #dbeafe; }
+
+        .wakelock-box { display: flex; align-items: center; justify-content: space-between; background: #f0f9ff; border: 1px solid #bae6fd; padding: 10px; border-radius: 8px; margin-bottom: 12px; flex-shrink: 0; }
+        .wakelock-box label { margin: 0; cursor: pointer; color: #0369a1; font-size: 0.9rem; font-weight: bold; }
+
+        .center-btn { position: absolute; top: 14px; right: 14px; z-index: 1000; background: #fff; color: #0284c7; border: 2px solid #cbd5e1; width: 44px; height: 44px; border-radius: 50%; font-size: 1.3rem; box-shadow: 0 2px 8px rgba(0,0,0,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+        .person-icon { width: 34px; height: 42px; display: flex; align-items: center; justify-content: center; font-size: 30px; }
+        .star-marker { font-size: 24px; text-shadow: 0 0 3px #000; text-align: center; line-height: 24px; cursor: pointer; }
+
+        .offline-info { font-size: 0.75rem; color: #0284c7; margin-top: 6px; font-weight: bold; text-align: center; display: none; line-height: 1.3; }
+
+        @media(max-width:760px){
+            .map-app { flex-direction: column; }
+            .map-panel { width: 100%; flex: 1 1 auto; max-height: 52vh; padding: 10px; }
+            #map-container { flex: 1 1 auto; width: 100%; min-height: 48vh; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="map-app">
+        <aside class="map-panel">
+            <h1>📍 Solo Travel & Friend Map</h1>
+
+            <!-- 1. Keep Screen Awake 第一行 -->
+            <div class="wakelock-box">
+                <label for="wakelock-toggle">💡 <b>Keep Screen Awake</b></label>
+                <input type="checkbox" id="wakelock-toggle">
+            </div>
+
+            <!-- 2. 位置与轨迹区 -->
+            <section class="section">
+                <h2>📍 My Current Location</h2>
+                <div id="my-address" class="address-box">正在自动获取 GPS 定位...</div>
+                <div id="my-coordinates" class="coords-info">经纬度: 获取中...</div>
+                <button id="get-my-location-btn" class="btn-info" style="width:100%; margin-top:8px;">Get my location (拷贝精确地址)</button>
+                
+                <div class="row" style="margin-top:8px;">
+                    <button id="clear-track" class="btn-secondary" style="width:100%;">清除行走轨迹</button>
+                </div>
+                <div class="row" style="margin-top:6px;">
+                    <button id="download-offline" class="btn-info" style="flex:1;">📥 下载 5 公里离线包 (HD)</button>
+                    <button id="clear-offline" class="btn-danger" style="flex:1;">🗑️ 清除缓存</button>
+                </div>
+                <div id="offline-size-info" class="offline-info"></div>
+            </section>
+
+            <!-- 3. Search Location 区域 -->
+            <section class="section">
+                <h2>🔍 Search Location</h2>
+                <div class="row" style="margin-top:6px;">
+                    <input id="search-input" type="text" placeholder="输入地址或地名...">
+                    <button id="search-btn">Search Location</button>
+                </div>
+
+                <div class="row" style="margin-top:8px;">
+                    <span style="font-size:13px; font-weight:bold;">这是</span>
+                    <input id="star-title-input" type="text" placeholder="输入名称(如:我的车/某某饭店)..." style="font-size:13px; padding:6px;">
+                    <button id="mark-btn" class="btn-success">标记</button>
+                </div>
+
+                <div style="margin-top:8px;">
+                    <span style="font-size:12px; color:#64748b; font-weight:bold;">此地为：</span>
+                    <div id="star-info-box" class="address-box" style="font-size:0.8rem; font-weight:normal; background:#fff; min-height:48px; color:#334155;">暂无选中的星标信息</div>
+                </div>
+
+                <div style="margin-top:8px;">
+                    <label style="font-size:12px; color:#64748b; font-weight:bold; display:block; margin-bottom:4px;">⭐ 已存星标列表：</label>
+                    <select id="star-select-list" onchange="onStarSelectChange(this.value)">
+                        <option value="">-- 请选择星标列表 --</option>
+                    </select>
+                </div>
+            </section>
+
+            <!-- 4. 标注与 TXT 导入导出区 -->
+            <section class="section">
+                <h2>⭐ 标注与 txt 导入导出</h2>
+                <p style="font-size:0.75rem; color:#64748b; margin-bottom:6px;">长按或右键地图可添加/移除星标。</p>
+                <button id="export-txt" class="btn-secondary" style="width:100%;">💾 Export Stars to TXT</button>
+                <label style="display:block; margin-top:6px; cursor:pointer;">
+                    <div style="text-align:center; padding:8px; background:#64748b; color:#fff; border-radius:6px; font-weight:bold; font-size:.85rem;">📂 Load Stars from TXT File</div>
+                    <input type="file" id="import-txt" accept=".txt" style="display:none;">
+                </label>
+            </section>
+
+            <!-- 5. Friend Location 导入解析区 -->
+            <section class="section">
+                <h2>👥 Paste friend's location or link</h2>
+                <input id="friend-location-input" type="text" placeholder="贴入对方给你的完整地址或含有坐标的链接..." style="width:100%; margin-top:4px;">
+                <button id="show-friend-btn" class="btn-success" style="width:100%; margin-top:8px;">show friend on map</button>
+                
+                <div style="margin-top:8px;">
+                    <span style="font-size:12px; color:#64748b; font-weight:bold;">🟢 对方精确地址：</span>
+                    <div id="friend-address-display" class="address-box" style="font-size:0.8rem; font-weight:normal;">尚未在地图上加载对方位置</div>
+                </div>
+            </section>
+
+            <!-- 6. Share My Location 导出区 -->
+            <section class="section">
+                <h2>🔗 Share my location</h2>
+                <div class="row">
+                    <button id="generate-link-btn" class="btn-info" style="flex:1;">generate location link</button>
+                    <button id="copy-link-btn" class="btn-success" style="flex:1;">copy link</button>
+                </div>
+                <input id="my-link-output" type="text" readonly placeholder="生成的地址链接将显示在这里..." style="width:100%; margin-top:6px; font-size:12px; background:#f1f5f9;">
+            </section>
+        </aside>
+
+        <!-- 右侧地图容器 -->
+        <div id="map-container">
+            <button id="center-me-btn" class="center-btn" title="定位到我的位置">🎯</button>
+            <main id="map" aria-label="Map"></main>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. IndexedDB 地图离线数据库引擎 ---
+        const DB_NAME = 'OfflineMapDB';
+        const DB_VERSION = 1;
+        const STORE_NAME = 'tiles';
+        let db = null;
+
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onupgradeneeded = e => {
+                    const database = e.target.result;
+                    if (!database.objectStoreNames.contains(STORE_NAME)) {
+                        database.createObjectStore(STORE_NAME);
+                    }
+                };
+                request.onsuccess = e => {
+                    db = e.target.result;
+                    resolve(db);
+                };
+                request.onerror = e => reject(e.target.error);
+            });
+        }
+
+        function saveTileToDB(key, blob) {
+            return new Promise((resolve, reject) => {
+                if (!db) return reject('DB未初始化');
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                store.put(blob, key);
+                tx.oncomplete = () => resolve();
+                tx.onerror = e => reject(e.target.error);
+            });
+        }
+
+        function getTileFromDB(key) {
+            return new Promise((resolve) => {
+                if (!db) return resolve(null);
+                const tx = db.transaction(STORE_NAME, 'readonly');
+                const store = tx.objectStore(STORE_NAME);
+                const request = store.get(key);
+                request.onsuccess = () => resolve(request.result || null);
+                request.onerror = () => resolve(null);
+            });
+        }
+
+        function clearTileDB() {
+            return new Promise((resolve, reject) => {
+                if (!db) return resolve();
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                store.clear();
+                tx.oncomplete = () => resolve();
+                tx.onerror = e => reject(e.target.error);
+            });
+        }
+
+        function getDBTileCount() {
+            return new Promise((resolve) => {
+                if (!db) return resolve(0);
+                const tx = db.transaction(STORE_NAME, 'readonly');
+                const store = tx.objectStore(STORE_NAME);
+                const request = store.count();
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => resolve(0);
+            });
+        }
+
+        // --- 2. Leaflet 离线 TileLayer 图层（优先读 IndexedDB） ---
+        const OfflineTileLayer = L.TileLayer.extend({
+            createTile: function (coords, done) {
+                const tile = document.createElement('img');
+                const key = `${coords.z}_${coords.x}_${coords.y}`;
+                const url = this.getTileUrl(coords);
+
+                getTileFromDB(key).then(blob => {
+                    if (blob) {
+                        tile.src = URL.createObjectURL(blob);
+                        done(null, tile);
+                    } else {
+                        fetch(url)
+                            .then(res => {
+                                if (res.ok) return res.blob();
+                                throw new Error('网络请求失败');
+                            })
+                            .then(fetchedBlob => {
+                                saveTileToDB(key, fetchedBlob);
+                                tile.src = URL.createObjectURL(fetchedBlob);
+                                done(null, tile);
+                            })
+                            .catch(err => {
+                                tile.src = ''; 
+                                done(err, tile);
+                            });
+                    }
+                });
+                return tile;
+            }
+        });
+
+        // --- 3. 全局变量与标记图标 ---
+        let leafletMap = null;
+        let meMarker = null, friendMarker = null;
+        let myTrack = [];
+        let myLine = null;
+        let myCurrentPos = null;
+        let starMarkers = [], starLeafletMarkers = [];
+        let selectedStarIndex = -1;
+
+        // 我: 🧍 小人；对方: 🟢 绿点
+        const personIcon = L.divIcon({ className: '', html: '<div class="person-icon">🧍</div>', iconSize: [34, 42], iconAnchor: [17, 41], popupAnchor: [0, -38] });
+        const greenIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41], iconAnchor: [12, 41], shadowSize: [41, 41], popupAnchor: [1, -34]
+        });
+        const starIcon = L.divIcon({ className: 'star-marker', html: '⭐', iconSize: [24, 24], iconAnchor: [12, 12] });
+
+        // --- 4. 初始化地图与自动 GPS 定位 ---
+        async function initMap() {
+            await initDB();
+
+            leafletMap = L.map('map', { zoomControl: true }).setView([20, 0], 2);
+            
+            new OfflineTileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19, attribution: '© OpenStreetMap contributors', crossOrigin: true
+            }).addTo(leafletMap);
+
+            // 我在地图上的行走路径用 蓝色 线条
+            myLine = L.polyline([], { color: '#2563eb', weight: 5, opacity: 0.8 }).addTo(leafletMap);
+
+            // 页面加载自动请求 GPS 权限并监听位置
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(
+                    pos => {
+                        const { latitude: lat, longitude: lon, accuracy } = pos.coords;
+                        myCurrentPos = { lat, lng: lon };
+
+                        document.getElementById('my-coordinates').innerText = `纬度: ${lat.toFixed(6)} | 经度: ${lon.toFixed(6)} | 精度: ±${Math.round(accuracy)}m`;
+
+                        if (!meMarker) {
+                            meMarker = L.marker([lat, lon], { icon: personIcon }).addTo(leafletMap);
+                            meMarker.bindPopup('<b>🧍 我的当前位置</b><br><span id="pop-my-addr">获取精确地址中...</span>');
+                            leafletMap.setView([lat, lon], 15);
+                        } else {
+                            meMarker.setLatLng([lat, lon]);
+                        }
+
+                        fetchAddress(lat, lon, 'my-address', 'pop-my-addr', '我的当前位置');
+
+                        const lastPoint = myTrack[myTrack.length - 1];
+                        if (!lastPoint || lastPoint[0] !== lat || lastPoint[1] !== lon) {
+                            myTrack.push([lat, lon]);
+                            myLine.setLatLngs(myTrack);
+                        }
+                    },
+                    err => { 
+                        document.getElementById('my-address').innerText = '无法获取 GPS 定位: ' + err.message; 
+                    },
+                    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+                );
+            } else {
+                document.getElementById('my-address').innerText = '当前浏览器不支持 GPS 定位';
+            }
+
+            // 长按或右键添加星标
+            let pressTimer;
+            leafletMap.on('mousedown touchstart', e => { pressTimer = setTimeout(() => handleMapLongPress(e.latlng.lat, e.latlng.lng), 800); });
+            leafletMap.on('mouseup touchend dragstart zoomstart', () => clearTimeout(pressTimer));
+            leafletMap.on('contextmenu', e => handleMapLongPress(e.latlng.lat, e.latlng.lng));
+
+            updateOfflineInfoDisplay();
+        }
+
+        // 获取反向地理编码地址
+        async function fetchAddress(lat, lon, elementId, popupElemId, label) {
+            const cacheKey = `geo_${lat.toFixed(4)}_${lon.toFixed(4)}`;
+            const cached = localStorage.getItem(cacheKey);
+
+            const updatePopup = (addrText) => {
+                const popElem = document.getElementById(popupElemId);
+                if (popElem) popElem.innerText = addrText;
+                else if (elementId === 'my-address' && meMarker) meMarker.setPopupContent(`<b>🧍 ${label}</b><br>${addrText}`);
+            };
+
+            if (cached) {
+                document.getElementById(elementId).innerText = cached;
+                updatePopup(cached);
+                return cached;
+            }
+
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&accept-language=zh-CN`, {
+                    headers: { 'User-Agent': 'Travel-Map-App/1.0' }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const addr = data.display_name || `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+                    document.getElementById(elementId).innerText = addr;
+                    updatePopup(addr);
+                    localStorage.setItem(cacheKey, addr);
+                    return addr;
+                }
+            } catch (_) {
+                const fallback = `坐标: ${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+                document.getElementById(elementId).innerText = fallback;
+                updatePopup(fallback);
+                return fallback;
+            }
+        }
+
+        // --- 5. 交互按钮事件绑定 ---
+
+        // Get my location 拷贝自己的精确地址
+        document.getElementById('get-my-location-btn').onclick = () => {
+            const addrText = document.getElementById('my-address').innerText;
+            if (!addrText || addrText.includes('正在自动获取')) return alert('GPS 地址尚未就绪！');
+            navigator.clipboard.writeText(addrText).then(() => alert('已成功拷贝你的精确地址至剪贴板！'));
+        };
+
+        // 清除行走轨迹
+        document.getElementById('clear-track').onclick = () => {
+            myTrack = [];
+            myLine.setLatLngs([]);
+            alert('已成功清除行走轨迹！');
+        };
+
+        // 定位回到自己
+        document.getElementById('center-me-btn').onclick = () => {
+            if (myCurrentPos && leafletMap) {
+                leafletMap.setView([myCurrentPos.lat, myCurrentPos.lng], 15);
+                if (meMarker) meMarker.openPopup();
+            } else { alert('GPS 定位获取中，请稍候...'); }
+        };
+
+        // Search Location 功能
+        document.getElementById('search-btn').onclick = async () => {
+            const q = document.getElementById('search-input').value.trim();
+            if (!q) return alert('请输入搜索地址！');
+            try {
+                const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&accept-language=zh-CN`, {
+                    headers: { 'User-Agent': 'Travel-Map-App/1.0' }
+                });
+                const d = await r.json();
+                if (d && d.length > 0) {
+                    const lat = parseFloat(d[0].lat), lon = parseFloat(d[0].lon);
+                    leafletMap.setView([lat, lon], 16);
+                    const titleName = document.getElementById('star-title-input').value.trim();
+                    await createStarAt(lat, lon, titleName);
+                } else { 
+                    alert('未找到该地址！'); 
+                }
+            } catch (err) { 
+                alert('搜索请求失败，请检查网络通信！'); 
+            }
+        };
+
+        // "这是"+名称+"标记" 按钮
+        document.getElementById('mark-btn').onclick = () => {
+            const inputTitle = document.getElementById('star-title-input').value.trim();
+            if (!inputTitle) return alert('请先在文本框内输入标记名称！');
+
+            if (selectedStarIndex >= 0 && selectedStarIndex < starMarkers.length) {
+                starMarkers[selectedStarIndex].title = inputTitle;
+                renderStars();
+                selectStar(selectedStarIndex);
+                starLeafletMarkers[selectedStarIndex].openPopup();
+            } else {
+                alert('请先在地图上选择或通过搜索生成一颗星标！');
+            }
+        };
+
+        // --- 6. 星标渲染与管理 ---
+        function renderStars() {
+            starLeafletMarkers.forEach(m => leafletMap.removeLayer(m));
+            starLeafletMarkers = [];
+
+            const selectList = document.getElementById('star-select-list');
+            selectList.innerHTML = '<option value="">-- 请选择星标列表 --</option>';
+
+            starMarkers.forEach((item, index) => {
+                const displayTitle = item.title && item.title.trim() !== '' ? item.title.trim() : `星标 ${index + 1}`;
+                const popupContent = `<b>${displayTitle}</b><br>${item.address}<br>坐标: ${item.lat.toFixed(6)}, ${item.lon.toFixed(6)}`;
+                
+                const m = L.marker([item.lat, item.lon], { icon: starIcon }).addTo(leafletMap).bindPopup(popupContent);
+                m.on('click', () => { selectStar(index); });
+                starLeafletMarkers.push(m);
+
+                const opt = document.createElement('option');
+                opt.value = index;
+                opt.innerText = `${index + 1}. ${displayTitle} (${item.address.substring(0, 15)}...)`;
+                selectList.appendChild(opt);
+            });
+
+            localStorage.setItem('saved_stars', JSON.stringify(starMarkers));
+        }
+
+        function selectStar(index) {
+            if (index < 0 || index >= starMarkers.length) return;
+            selectedStarIndex = index;
+            const item = starMarkers[index];
+            const displayTitle = item.title && item.title.trim() !== '' ? item.title.trim() : '标记点';
+            
+            const infoText = `${displayTitle}\n地址: ${item.address}\n坐标: ${item.lat.toFixed(6)}, ${item.lon.toFixed(6)}`;
+            document.getElementById('star-info-box').innerText = infoText;
+            document.getElementById('star-title-input').value = displayTitle !== '标记点' ? displayTitle : '';
+            document.getElementById('star-select-list').value = index;
+        }
+
+        function onStarSelectChange(val) {
+            if (val === "" || val === null) return;
+            const index = parseInt(val);
+            selectStar(index);
+            if (index >= 0 && index < starMarkers.length) {
+                leafletMap.panTo([starMarkers[index].lat, starMarkers[index].lon]);
+                if (starLeafletMarkers[index]) starLeafletMarkers[index].openPopup();
+            }
+        }
+
+        async function createStarAt(lat, lon, customTitle = '') {
+            let addr = `获取地址中...`;
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&accept-language=zh-CN`, {
+                    headers: { 'User-Agent': 'Travel-Map-App/1.0' }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    addr = data.display_name || `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+                }
+            } catch (_) {
+                addr = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+            }
+
+            const newStar = { 
+                title: customTitle.trim() !== '' ? customTitle.trim() : '标记点', 
+                lat, 
+                lon, 
+                address: addr 
+            };
+            
+            starMarkers.push(newStar);
+            renderStars();
+            selectStar(starMarkers.length - 1);
+            if (starLeafletMarkers[starLeafletMarkers.length - 1]) {
+                starLeafletMarkers[starLeafletMarkers.length - 1].openPopup();
+            }
+        }
+
+        function handleMapLongPress(lat, lon) {
+            const idx = starMarkers.findIndex(m => Math.abs(m.lat - lat) < 0.0003 && Math.abs(m.lon - lon) < 0.0003);
+            if (idx !== -1) {
+                starMarkers.splice(idx, 1);
+                selectedStarIndex = -1;
+                document.getElementById('star-info-box').innerText = '已取消该星标';
+                renderStars();
+            } else {
+                createStarAt(lat, lon, '');
+            }
+        }
+
+        // TXT 导出
+        document.getElementById('export-txt').onclick = () => {
+            let txt = '';
+            starMarkers.forEach(m => {
+                const name = m.title && m.title.trim() !== '' ? m.title.trim() : '标记点';
+                txt += `${name} | ${m.address} | ${m.lat.toFixed(6)}, ${m.lon.toFixed(6)}\n`;
+            });
+
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain;charset=utf-8' }));
+            a.download = 'star marks.txt';
+            a.click();
+        };
+
+        // TXT 导入
+        document.getElementById('import-txt').onchange = e => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async evt => {
+                const content = evt.target.result;
+                const lines = content.split('\n');
+                
+                starMarkers = [];
+                selectedStarIndex = -1;
+                let loadedCount = 0;
+
+                for (let l of lines) {
+                    l = l.trim();
+                    if (!l || l.startsWith('#')) continue;
+
+                    const parts = l.split('|').map(s => s.trim());
+                    if (parts.length >= 3) {
+                        const title = parts[0] || '标记点';
+                        const address = parts[1];
+                        const coords = parts[2].split(',');
+                        const lat = parseFloat(coords[0]);
+                        const lon = parseFloat(coords[1]);
+
+                        if (!isNaN(lat) && !isNaN(lon)) {
+                            starMarkers.push({ title, address, lat, lon });
+                            loadedCount++;
+                        }
+                    }
+                }
+
+                renderStars();
+                if (content.trim() === '') alert('导入的是空文件，已清空地图上的所有星标！');
+                else alert(`从文件成功导入 ${loadedCount} 个标记点！`);
+                e.target.value = '';
+            };
+            reader.readAsText(file);
+        };
+
+        // --- 7. Show friend on map (解析链接或地址) ---
+        document.getElementById('show-friend-btn').onclick = async () => {
+            const inputVal = document.getElementById('friend-location-input').value.trim();
+            if (!inputVal) return alert('请先贴入对方的地址或链接！');
+
+            let lat = null, lng = null;
+
+            // 正则匹配经纬度 (如 "lat=39.9&lng=116.4" 或 "39.91234, 116.40567")
+            const coordMatch = inputVal.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/) || inputVal.match(/lat=(-?\d+\.\d+)&lng=(-?\d+\.\d+)/);
+
+            if (coordMatch) {
+                lat = parseFloat(coordMatch[1]);
+                lng = parseFloat(coordMatch[2]);
+            }
+
+            if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
+                renderFriendMarker(lat, lng);
+            } else {
+                // 如果没有包含坐标，当作文字地址调用 OpenStreetMap 查找
+                try {
+                    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(inputVal)}&accept-language=zh-CN`, {
+                        headers: { 'User-Agent': 'Travel-Map-App/1.0' }
+                    });
+                    const d = await r.json();
+                    if (d && d.length > 0) {
+                        lat = parseFloat(d[0].lat);
+                        lng = parseFloat(d[0].lon);
+                        renderFriendMarker(lat, lng);
+                    } else {
+                        alert('无法从输入的文字或链接中解析出有效的地址与坐标！');
+                    }
+                } catch (_) {
+                    alert('网络查询失败，请检查网络！');
+                }
+            }
+        };
+
+        async function renderFriendMarker(lat, lng) {
+            leafletMap.setView([lat, lng], 15);
+
+            if (!friendMarker) {
+                friendMarker = L.marker([lat, lng], { icon: greenIcon, zIndexOffset: 500 }).addTo(leafletMap);
+            } else {
+                friendMarker.setLatLng([lat, lng]);
+            }
+
+            document.getElementById('friend-address-display').innerText = '正在获取对方精确地址...';
+
+            const addrText = await fetchAddress(lat, lng, 'friend-address-display', 'pop-friend-addr', '对方的位置');
+            friendMarker.bindPopup(`<b>🟢 对方的位置</b><br>${addrText}`).openPopup();
+        }
+
+        // --- 8. Share My Location 生成与复制链接 ---
+        document.getElementById('generate-link-btn').onclick = () => {
+            if (!myCurrentPos) return alert('GPS 定位尚未就绪！');
+            const baseUrl = window.location.href.split('?')[0];
+            const myAddr = document.getElementById('my-address').innerText;
+            const shareUrl = `${baseUrl}?lat=${myCurrentPos.lat.toFixed(6)}&lng=${myCurrentPos.lng.toFixed(6)}&addr=${encodeURIComponent(myAddr)}`;
+            document.getElementById('my-link-output').value = shareUrl;
+        };
+
+        document.getElementById('copy-link-btn').onclick = () => {
+            const linkInput = document.getElementById('my-link-output');
+            if (!linkInput.value) return alert('请先点击 "generate location link" 生成链接！');
+            navigator.clipboard.writeText(linkInput.value).then(() => alert('已成功复制你的位置链接，可发给好友！'));
+        };
+
+        // --- 9. 离线地图 5km 下载与清理逻辑 ---
+        function latLonToTileX(lat, lon, zoom) {
+            return Math.floor((lon + 180) / 360 * Math.pow(2, zoom));
+        }
+
+        function latLonToTileY(lat, lon, zoom) {
+            const rad = lat * Math.PI / 180;
+            return Math.floor((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * Math.pow(2, zoom));
+        }
+
+        document.getElementById('download-offline').onclick = async () => {
+            if (!myCurrentPos) return alert('等待 GPS 获取当前位置...');
+            const p = myCurrentPos;
+            
+            const deltaLat = 5 / 111.0; 
+            const deltaLon = 5 / (111.0 * Math.cos(p.lat * Math.PI / 180));
+
+            const minLat = p.lat - deltaLat, maxLat = p.lat + deltaLat;
+            const minLon = p.lng - deltaLon, maxLon = p.lng + deltaLon;
+
+            const zoomLevels = [13, 14, 15, 16];
+            let tilesToDownload = [];
+
+            zoomLevels.forEach(z => {
+                const x1 = latLonToTileX(minLat, minLon, z);
+                const x2 = latLonToTileX(maxLat, maxLon, z);
+                const y1 = latLonToTileY(maxLat, minLon, z);
+                const y2 = latLonToTileY(minLat, maxLon, z);
+
+                const startX = Math.min(x1, x2), endX = Math.max(x1, x2);
+                const startY = Math.min(y1, y2), endY = Math.max(y1, y2);
+
+                for (let x = startX; x <= endX; x++) {
+                    for (let y = startY; y <= endY; y++) {
+                        const sub = ['a', 'b', 'c'][(x + y) % 3];
+                        tilesToDownload.push({
+                            key: `${z}_${x}_${y}`,
+                            url: `https://${sub}.tile.openstreetmap.org/${z}/${x}/${y}.png`
+                        });
+                    }
+                }
+            });
+
+            const total = tilesToDownload.length;
+            if (!confirm(`准备下载半径 5 公里区域地图。\n涵盖 Zoom 13 ~ 16 共 ${total} 块高清瓦片，是否继续？`)) return;
+
+            const infoElem = document.getElementById('offline-size-info');
+            infoElem.style.display = 'block';
+
+            let downloaded = 0, skipped = 0;
+
+            for (let i = 0; i < total; i++) {
+                const item = tilesToDownload[i];
+                const exist = await getTileFromDB(item.key);
+                if (exist) {
+                    skipped++;
+                } else {
+                    try {
+                        const res = await fetch(item.url);
+                        if (res.ok) {
+                            const blob = await res.blob();
+                            await saveTileToDB(item.key, blob);
+                            downloaded++;
+                        }
+                    } catch (_) {}
+                }
+
+                if (i % 20 === 0 || i === total - 1) {
+                    infoElem.innerText = `⏳ 离线包下载进度: ${Math.round(((i + 1) / total) * 100)}% (${i + 1}/${total})`;
+                }
+            }
+
+            alert(`离线包下载完成！新增下载 ${downloaded} 块瓦片，跳过重复 ${skipped} 块。`);
+            await updateOfflineInfoDisplay();
+        };
+
+        async function updateOfflineInfoDisplay() {
+            const count = await getDBTileCount();
+            const infoElem = document.getElementById('offline-size-info');
+            if (count > 0) {
+                const approxMB = (count * 15 / 1024).toFixed(2);
+                infoElem.innerText = `💾 5km 高清离线包已就绪！\n已存 IndexedDB: ${count} 块瓦片 (约 ${approxMB} MB)`;
+                infoElem.style.display = 'block';
+            } else {
+                infoElem.style.display = 'none';
+            }
+        }
+
+        document.getElementById('clear-offline').onclick = async () => {
+            if (confirm('确定要清空全部离线地图缓存吗？')) {
+                await clearTileDB();
+                await updateOfflineInfoDisplay();
+                alert('离线地图缓存已彻底删除！');
+            }
+        };
+
+        // Keep Screen Awake 屏幕常亮逻辑
+        let wakeLock = null;
+        const wakeLockToggle = document.getElementById('wakelock-toggle');
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => { wakeLock = null; });
+                }
+            } catch (_) {}
+        }
+        wakeLockToggle.addEventListener('change', () => {
+            if (wakeLockToggle.checked) requestWakeLock();
+            else if (wakeLock) wakeLock.release();
+        });
+
+        // 页面初始化与本地数据恢复
+        window.addEventListener('load', () => {
+            initMap();
+            const localStars = localStorage.getItem('saved_stars');
+            if (localStars) { try { starMarkers = JSON.parse(localStars); renderStars(); } catch (_) {} }
+        });
+    </script>
+</body>
+</html>
